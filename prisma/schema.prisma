@@ -1,0 +1,130 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
+}
+
+model Owner {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  networkingGoal String?  @map("networking_goal") // nullable — заполняется на onboarding
+  privacyConsent Boolean  @default(false) @map("privacy_consent")
+  excludedTopics String[] @default([]) @map("excluded_topics")
+  onboarded      Boolean  @default(false)         // прошёл ли онбординг
+  createdAt      DateTime @default(now()) @map("created_at")
+  agent          Agent?
+
+  @@map("owners")
+}
+
+model Agent {
+  id           String   @id @default(cuid())
+  agentId      String   @unique @map("agent_id") // "agent_arlan_001"
+  ownerId      String   @unique @map("owner_id")
+  owner        Owner    @relation(fields: [ownerId], references: [id])
+  apiKey       String   @unique @map("api_key")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastActiveAt DateTime @updatedAt @map("last_active_at")
+
+  context  AgentContext?
+  beacons  Beacon[]
+  matchesAsA Match[] @relation("AgentA")
+  matchesAsB Match[] @relation("AgentB")
+
+  @@map("agents")
+}
+
+model AgentContext {
+  id             String   @id @default(cuid())
+  agentId        String   @unique @map("agent_id")
+  agent          Agent    @relation(fields: [agentId], references: [id])
+
+  currentWork    String   @map("current_work")    // what owner is building/working on right now
+  expertise      String[]                          // areas of expertise
+  lookingFor     String   @map("looking_for")      // what kind of person/collaboration owner needs
+  notLookingFor  String?  @map("not_looking_for")  // what to filter out
+  recentProblems String?  @map("recent_problems")  // what owner is stuck on
+  location       String?
+  networkingGoal String   @map("networking_goal")   // partnership | collaboration | mentor | peer
+
+  embedding      Unsupported("vector(1536)")?
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  previousHash   String?  @map("previous_hash")    // hash of previous context for change detection
+
+  @@map("agent_contexts")
+}
+
+model Beacon {
+  id           String    @id @default(cuid())
+  agentId      String    @map("agent_id")
+  agent        Agent     @relation(fields: [agentId], references: [id])
+  contextQuery String    @map("context_query") // what this beacon is waiting for
+  embedding    Unsupported("vector(1536)")?
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  triggeredAt  DateTime? @map("triggered_at")
+
+  @@index([isActive])
+  @@map("beacons")
+}
+
+model Match {
+  id             String      @id @default(cuid())
+  agentAId       String      @map("agent_a_id")
+  agentBId       String      @map("agent_b_id")
+  agentA         Agent       @relation("AgentA", fields: [agentAId], references: [id])
+  agentB         Agent       @relation("AgentB", fields: [agentBId], references: [id])
+
+  overlapSummary String      @map("overlap_summary")  // what agents decided in negotiation
+  framingForA    String      @map("framing_for_a")     // how to present to owner A
+  framingForB    String      @map("framing_for_b")     // how to present to owner B
+
+  status         MatchStatus @default(NEGOTIATING)
+  confirmedByA   Boolean     @default(false) @map("confirmed_by_a")
+  confirmedByB   Boolean     @default(false) @map("confirmed_by_b")
+
+  createdAt      DateTime    @default(now()) @map("created_at")
+  proposedAt     DateTime?   @map("proposed_at")
+  matchedAt      DateTime?   @map("matched_at")
+
+  chat           Chat?
+
+  @@map("matches")
+}
+
+enum MatchStatus {
+  NEGOTIATING
+  PROPOSED
+  MATCHED
+  DORMANT
+  DECLINED
+}
+
+model Chat {
+  id        String    @id @default(cuid())
+  matchId   String    @unique @map("match_id")
+  match     Match     @relation(fields: [matchId], references: [id])
+  createdAt DateTime  @default(now()) @map("created_at")
+  messages  Message[]
+
+  @@map("chats")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String   @map("chat_id")
+  chat      Chat     @relation(fields: [chatId], references: [id])
+  fromOwner String   @map("from_owner") // owner id or "agent_a" / "agent_b" for opening messages
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("messages")
+}

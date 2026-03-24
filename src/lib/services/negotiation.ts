@@ -1,0 +1,371 @@
+import { prisma } from "@/lib/db";
+import { sendMatchProposalEmail } from "@/lib/services/notification";
+
+/**
+ * NegotiationFSM — state machine for agent-to-agent match negotiation
+ *
+ * States: NEGOTIATING → PROPOSED → MATCHED | DORMANT | DECLINED
+ *
+ * Flow:
+ * 1. Agent A calls initiate_negotiation(agent_b_id) → creates Match in NEGOTIATING
+ * 2. Agent B calls negotiate(match_id, "accept", framing) → both agents agreed
+ * 3. Agent A calls propose_match(match_id) → status becomes PROPOSED, owners notified
+ * 4. Each owner confirms or declines:
+ *    - Both confirm → MATCHED, chat opens
+ *    - Either says "not now" → DORMANT
+ *    - Either declines → DECLINED
+ */
+
+export async function initiateNegotiation(
+  initiatorAgentId: string, // external agent_id like "agent_arlan_001"
+  targetAgentId: string // external agent_id of the other agent
+) {
+  const agentA = await prisma.agent.findUnique({
+    where: { agentId: initiatorAgentId },
+    include: { context: true, owner: true },
+  });
+  if (!agentA) throw new Error(`Agent not found: ${initiatorAgentId}`);
+  if (!agentA.context) throw new Error(`Agent has no context: ${initiatorAgentId}`);
+
+  const agentB = await prisma.agent.findUnique({
+    where: { agentId: targetAgentId },
+    include: { context: true, owner: true },
+  });
+  if (!agentB) throw new Error(`Agent not found: ${targetAgentId}`);
+  if (!agentB.context) throw new Error(`Agent has no context: ${targetAgentId}`);
+
+  // Check for existing active negotiation between these two agents
+  const existing = await prisma.match.findFirst({
+    where: {
+      OR: [
+        { agentAId: agentA.id, agentBId: agentB.id },
+        { agentAId: agentB.id, agentBId: agentA.id },
+      ],
+      status: { in: ["NEGOTIATING", "PROPOSED", "MATCHED"] },
+    },
+  });
+
+  if (existing) {
+    return {
+      matchId: existing.id,
+      status: existing.status,
+      alreadyExists: true,
+      message: `Active match already exists between ${initiatorAgentId} and ${targetAgentId}`,
+    };
+  }
+
+  const match = await prisma.match.create({
+    data: {
+      agentAId: agentA.id,
+      agentBId: agentB.id,
+      overlapSummary: "",
+      framingForA: "",
+      framingForB: "",
+      status: "NEGOTIATING",
+    },
+  });
+
+  return {
+    matchId: match.id,
+    status: "NEGOTIATING",
+    alreadyExists: false,
+    agentA: {
+      agentId: initiatorAgentId,
+      currentWork: agentA.context.currentWork,
+      expertise: agentA.context.expertise,
+      lookingFor: agentA.context.lookingFor,
+      networkingGoal: agentA.context.networkingGoal,
+    },
+    agentB: {
+      agentId: targetAgentId,
+      currentWork: agentB.context.currentWork,
+      expertise: agentB.context.expertise,
+      lookingFor: agentB.context.lookingFor,
+      networkingGoal: agentB.context.networkingGoal,
+    },
+  };
+}
+
+export async function negotiate(
+  matchId: string,
+  agentExternalId: string,
+  decision: "accept" | "decline",
+  overlapSummary?: string,
+  framingForOwner?: string
+) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      agentA: { include: { owner: true } },
+      agentB: { include: { owner: true } },
+    },
+  });
+
+  if (!match) throw new Error(`Match not found: ${matchId}`);
+  if (match.status !== "NEGOTIATING") {
+    throw new Error(`Match is not in NEGOTIATING state (current: ${match.status})`);
+  }
+
+  const agent = await prisma.agent.findUnique({ where: { agentId: agentExternalId } });
+  if (!agent) throw new Error(`Agent not found: ${agentExternalId}`);
+
+  const isAgentA = match.agentAId === agent.id;
+  const isAgentB = match.agentBId === agent.id;
+  if (!isAgentA && !isAgentB) {
+    throw new Error(`Agent ${agentExternalId} is not part of this match`);
+  }
+
+  if (decision === "decline") {
+    await prisma.match.update({
+      where: { id: matchId },
+      data: { status: "DECLINED" },
+    });
+    return { matchId, status: "DECLINED", message: "Negotiation declined" };
+  }
+
+  // Accept — update framing for this agent's owner
+  const updateData: Record<string, string> = {};
+  if (overlapSummary) updateData.overlapSummary = overlapSummary;
+  if (isAgentA && framingForOwner) updateData.framingForA = framingForOwner;
+  if (isAgentB && framingForOwner) updateData.framingForB = framingForOwner;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: updateData,
+  });
+
+  // Fetch updated match to check state
+  const updated = await prisma.match.findUnique({ where: { id: matchId } });
+
+  return {
+    matchId,
+    status: "NEGOTIATING",
+    accepted: true,
+    overlapSummary: updated?.overlapSummary,
+    framingForA: updated?.framingForA,
+    framingForB: updated?.framingForB,
+    message: isAgentA
+      ? "Agent A accepted. Waiting for Agent B to negotiate."
+      : "Agent B accepted. Agent A can now propose the match.",
+  };
+}
+
+export async function proposeMatch(matchId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      agentA: { include: { owner: true } },
+      agentB: { include: { owner: true } },
+    },
+  });
+
+  if (!match) throw new Error(`Match not found: ${matchId}`);
+  if (match.status !== "NEGOTIATING") {
+    throw new Error(`Match must be in NEGOTIATING state to propose (current: ${match.status})`);
+  }
+
+  // Validate both framings exist — quality gate
+  if (!match.overlapSummary || !match.framingForA || !match.framingForB) {
+    throw new Error(
+      "Cannot propose: both agents must provide overlap_summary and framing for their owner. " +
+        `Missing: ${[
+          !match.overlapSummary && "overlap_summary",
+          !match.framingForA && "framing_for_a",
+          !match.framingForB && "framing_for_b",
+        ]
+          .filter(Boolean)
+          .join(", ")}`
+    );
+  }
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      status: "PROPOSED",
+      proposedAt: new Date(),
+    },
+  });
+
+  // Send email notifications to both owners (non-blocking)
+  Promise.all([
+    sendMatchProposalEmail({
+      ownerEmail: match.agentA.owner.email,
+      ownerName: match.agentA.owner.name,
+      otherPersonName: match.agentB.owner.name,
+      framing: match.framingForA,
+      matchId,
+      ownerId: match.agentA.owner.id,
+    }),
+    sendMatchProposalEmail({
+      ownerEmail: match.agentB.owner.email,
+      ownerName: match.agentB.owner.name,
+      otherPersonName: match.agentA.owner.name,
+      framing: match.framingForB,
+      matchId,
+      ownerId: match.agentB.owner.id,
+    }),
+  ]).catch((err) => console.error("[notification] Email batch failed:", err));
+
+  return {
+    matchId,
+    status: "PROPOSED",
+    proposedTo: {
+      ownerA: { id: match.agentA.owner.id, name: match.agentA.owner.name, email: match.agentA.owner.email },
+      ownerB: { id: match.agentB.owner.id, name: match.agentB.owner.name, email: match.agentB.owner.email },
+    },
+    framingForA: match.framingForA,
+    framingForB: match.framingForB,
+    overlapSummary: match.overlapSummary,
+  };
+}
+
+export async function confirmMatch(matchId: string, ownerId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      agentA: { include: { owner: true } },
+      agentB: { include: { owner: true } },
+    },
+  });
+
+  if (!match) throw new Error(`Match not found: ${matchId}`);
+  if (match.status !== "PROPOSED") {
+    throw new Error(`Match must be in PROPOSED state to confirm (current: ${match.status})`);
+  }
+
+  const isOwnerA = match.agentA.owner.id === ownerId;
+  const isOwnerB = match.agentB.owner.id === ownerId;
+  if (!isOwnerA && !isOwnerB) {
+    throw new Error(`Owner ${ownerId} is not part of this match`);
+  }
+
+  const updateData: Record<string, boolean> = {};
+  if (isOwnerA) updateData.confirmedByA = true;
+  if (isOwnerB) updateData.confirmedByB = true;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: updateData,
+  });
+
+  // Check if both confirmed
+  const newConfirmedByA = isOwnerA ? true : match.confirmedByA;
+  const newConfirmedByB = isOwnerB ? true : match.confirmedByB;
+  const bothConfirmed = newConfirmedByA && newConfirmedByB;
+
+  if (bothConfirmed) {
+    // Transition to MATCHED and create chat
+    await prisma.match.update({
+      where: { id: matchId },
+      data: { status: "MATCHED", matchedAt: new Date() },
+    });
+
+    const chat = await prisma.chat.create({
+      data: {
+        matchId,
+        messages: {
+          createMany: {
+            data: [
+              {
+                fromOwner: "agent_a",
+                content: `Here's why you should talk: ${match.overlapSummary}\n\n${match.framingForA}`,
+              },
+              {
+                fromOwner: "agent_b",
+                content: `Here's why you should talk: ${match.overlapSummary}\n\n${match.framingForB}`,
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    return {
+      matchId,
+      status: "MATCHED",
+      chatId: chat.id,
+      bothConfirmed: true,
+    };
+  }
+
+  return {
+    matchId,
+    status: "PROPOSED",
+    confirmedByA: newConfirmedByA,
+    confirmedByB: newConfirmedByB,
+    bothConfirmed: false,
+    message: `Waiting for ${!newConfirmedByA ? "Owner A" : "Owner B"} to confirm`,
+  };
+}
+
+export async function markDormant(matchId: string, ownerId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      agentA: { include: { owner: true } },
+      agentB: { include: { owner: true } },
+    },
+  });
+
+  if (!match) throw new Error(`Match not found: ${matchId}`);
+  if (match.status !== "PROPOSED") {
+    throw new Error(`Match must be in PROPOSED state to mark dormant (current: ${match.status})`);
+  }
+
+  const isOwnerA = match.agentA.owner.id === ownerId;
+  const isOwnerB = match.agentB.owner.id === ownerId;
+  if (!isOwnerA && !isOwnerB) {
+    throw new Error(`Owner ${ownerId} is not part of this match`);
+  }
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { status: "DORMANT" },
+  });
+
+  return { matchId, status: "DORMANT", markedBy: ownerId };
+}
+
+export async function getMatches(agentExternalId: string) {
+  const agent = await prisma.agent.findUnique({
+    where: { agentId: agentExternalId },
+  });
+  if (!agent) throw new Error(`Agent not found: ${agentExternalId}`);
+
+  const matches = await prisma.match.findMany({
+    where: {
+      OR: [{ agentAId: agent.id }, { agentBId: agent.id }],
+    },
+    include: {
+      agentA: { include: { owner: true, context: true } },
+      agentB: { include: { owner: true, context: true } },
+      chat: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return matches.map((m) => {
+    const isAgentA = m.agentAId === agent.id;
+    const otherAgent = isAgentA ? m.agentB : m.agentA;
+    const framingForMe = isAgentA ? m.framingForA : m.framingForB;
+
+    return {
+      matchId: m.id,
+      status: m.status,
+      overlapSummary: m.overlapSummary,
+      framingForMe,
+      otherAgent: {
+        agentId: otherAgent.agentId,
+        ownerName: otherAgent.owner.name,
+        currentWork: otherAgent.context?.currentWork,
+        expertise: otherAgent.context?.expertise,
+        location: otherAgent.context?.location,
+      },
+      confirmedByMe: isAgentA ? m.confirmedByA : m.confirmedByB,
+      confirmedByOther: isAgentA ? m.confirmedByB : m.confirmedByA,
+      chatId: m.chat?.id ?? null,
+      createdAt: m.createdAt,
+      matchedAt: m.matchedAt,
+    };
+  });
+}
