@@ -50,8 +50,8 @@ export default function NotifyPage() {
     });
     const result = await res.json();
 
-    if (result.status === "MATCHED" && result.chatId) {
-      window.location.href = `/chat/${result.chatId}`;
+    if (result.status === "MATCHED" && result.matchId) {
+      window.location.href = `/chat/${result.matchId}`;
       return;
     }
 

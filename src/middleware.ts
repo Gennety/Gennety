@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
 
   // Public paths — no auth required
   const publicPrefixes = ["/api/auth", "/api/feed", "/api/mcp", "/api/soul", "/api/track"];
-  const publicExact = ["/", "/login", "/feed", "/cookie-policy"];
+  const publicExact = ["/", "/login", "/feed", "/cookie-policy", "/privacy", "/terms"];
 
   if (
     publicExact.includes(pathname) ||
