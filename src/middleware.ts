@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated but not onboarded — redirect to onboarding
-  if (!token.onboarded && pathname !== "/onboarding") {
+  if (!token.onboarded && pathname !== "/onboarding" && pathname !== "/api/onboarding") {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
