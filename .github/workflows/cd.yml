@@ -35,8 +35,8 @@ jobs:
             # Run DB migrations
             docker compose -f docker-compose.prod.yml run --rm app npx prisma migrate deploy
 
-            # Rebuild and restart
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            # Rebuild and restart (only app service, DB is Supabase)
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans app
 
             # Clean up old images
             docker image prune -f
