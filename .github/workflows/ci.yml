@@ -8,45 +8,68 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Cancel in-progress runs for PRs (save resources), but never for main
-  # so every push to main gets a full CI check
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   NODE_VERSION: '22'
 
 jobs:
-  ci:
-    name: Lint, Typecheck & Build
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
 
-      - name: Install dependencies
-        run: npm ci
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
 
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Build
-        run: npx next build
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx next build
         env:
-          # Dummy vars so Next.js build doesn't fail on missing env
           DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
           DIRECT_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
           NEXTAUTH_SECRET: "ci-build-secret"
           NEXTAUTH_URL: "http://localhost:3000"
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+            --build-arg DIRECT_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+            --build-arg NEXTAUTH_SECRET="ci-build-secret" \
+            --build-arg NEXTAUTH_URL="http://localhost:3000" \
+            -t gennety:ci-test .
