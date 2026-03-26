@@ -74,6 +74,17 @@ model Agent {
 
   displayName  String?  @map("display_name")  // public name for activity feed
 
+  // Reputation fields
+  reputationScore           Float  @default(40) @map("reputation_score")
+  reputationAcceptanceRate  Float  @default(0)  @map("reputation_acceptance_rate")
+  reputationNegotiationRate Float  @default(0)  @map("reputation_negotiation_rate")
+  reputationCompletedMatches Int   @default(0)  @map("reputation_completed_matches")
+  totalProposedMatches      Int    @default(0)  @map("total_proposed_matches")
+  totalInitiatedNegotiations Int   @default(0)  @map("total_initiated_negotiations")
+  totalAcceptedByOwner      Int    @default(0)  @map("total_accepted_by_owner")
+  totalNegotiationsAgreed   Int    @default(0)  @map("total_negotiations_agreed")
+  interactionCount          Int    @default(0)  @map("interaction_count")
+
   context  AgentContext?
   beacons  Beacon[]
   matchesAsA Match[] @relation("AgentA")
@@ -100,6 +111,10 @@ model AgentContext {
   updatedAt      DateTime @updatedAt @map("updated_at")
   previousHash   String?  @map("previous_hash")    // hash of previous context for change detection
 
+  // Freshness fields
+  freshnessState          FreshnessState @default(ACTIVE) @map("freshness_state")
+  lastSignificantUpdateAt DateTime       @default(now())  @map("last_significant_update_at")
+
   @@map("agent_contexts")
 }
 
@@ -110,6 +125,7 @@ model Beacon {
   contextQuery String    @map("context_query") // what this beacon is waiting for
   embedding    Unsupported("vector(1536)")?
   isActive     Boolean   @default(true) @map("is_active")
+  preservable  Boolean   @default(true) // paused (true) vs deactivated (false)
   createdAt    DateTime  @default(now()) @map("created_at")
   triggeredAt  DateTime? @map("triggered_at")
 
@@ -150,6 +166,13 @@ enum MatchStatus {
   MATCHED
   DORMANT
   DECLINED
+}
+
+enum FreshnessState {
+  ACTIVE
+  AGING
+  STALE
+  INACTIVE
 }
 
 model Chat {

@@ -30,6 +30,72 @@ function contextToText(c: (typeof agents)[number]["context"]): string {
     .join(". ");
 }
 
+// Reputation/freshness presets for varied test data
+type FreshnessPreset = "ACTIVE" | "AGING" | "STALE" | "INACTIVE";
+interface ReputationPreset {
+  reputationScore: number;
+  reputationAcceptanceRate: number;
+  reputationNegotiationRate: number;
+  reputationCompletedMatches: number;
+  totalProposedMatches: number;
+  totalInitiatedNegotiations: number;
+  totalAcceptedByOwner: number;
+  totalNegotiationsAgreed: number;
+  interactionCount: number;
+  freshnessState: FreshnessPreset;
+  daysSinceUpdate: number; // how many days ago was the last significant update
+}
+
+// Varied presets to make seed data realistic
+const reputationPresets: Record<string, ReputationPreset> = {
+  high_active: {
+    reputationScore: 82, reputationAcceptanceRate: 0.85, reputationNegotiationRate: 0.75,
+    reputationCompletedMatches: 12, totalProposedMatches: 20, totalInitiatedNegotiations: 16,
+    totalAcceptedByOwner: 17, totalNegotiationsAgreed: 12, interactionCount: 35,
+    freshnessState: "ACTIVE", daysSinceUpdate: 3,
+  },
+  medium_active: {
+    reputationScore: 58, reputationAcceptanceRate: 0.6, reputationNegotiationRate: 0.5,
+    reputationCompletedMatches: 4, totalProposedMatches: 10, totalInitiatedNegotiations: 8,
+    totalAcceptedByOwner: 6, totalNegotiationsAgreed: 4, interactionCount: 15,
+    freshnessState: "ACTIVE", daysSinceUpdate: 10,
+  },
+  new_agent: {
+    reputationScore: 40, reputationAcceptanceRate: 0, reputationNegotiationRate: 0,
+    reputationCompletedMatches: 0, totalProposedMatches: 0, totalInitiatedNegotiations: 0,
+    totalAcceptedByOwner: 0, totalNegotiationsAgreed: 0, interactionCount: 0,
+    freshnessState: "ACTIVE", daysSinceUpdate: 0,
+  },
+  aging_medium: {
+    reputationScore: 52, reputationAcceptanceRate: 0.5, reputationNegotiationRate: 0.4,
+    reputationCompletedMatches: 3, totalProposedMatches: 8, totalInitiatedNegotiations: 5,
+    totalAcceptedByOwner: 4, totalNegotiationsAgreed: 2, interactionCount: 10,
+    freshnessState: "AGING", daysSinceUpdate: 40,
+  },
+  stale_low: {
+    reputationScore: 28, reputationAcceptanceRate: 0.3, reputationNegotiationRate: 0.2,
+    reputationCompletedMatches: 1, totalProposedMatches: 6, totalInitiatedNegotiations: 5,
+    totalAcceptedByOwner: 2, totalNegotiationsAgreed: 1, interactionCount: 8,
+    freshnessState: "STALE", daysSinceUpdate: 70,
+  },
+  inactive: {
+    reputationScore: 15, reputationAcceptanceRate: 0.2, reputationNegotiationRate: 0.1,
+    reputationCompletedMatches: 0, totalProposedMatches: 3, totalInitiatedNegotiations: 2,
+    totalAcceptedByOwner: 1, totalNegotiationsAgreed: 0, interactionCount: 4,
+    freshnessState: "INACTIVE", daysSinceUpdate: 100,
+  },
+};
+
+// Assign presets to agents in a rotating/varied pattern
+const agentPresetAssignments: string[] = [
+  "high_active", "medium_active", "new_agent", "medium_active", "high_active",    // 1-5
+  "aging_medium", "new_agent", "high_active", "medium_active", "stale_low",        // 6-10
+  "high_active", "new_agent", "medium_active", "aging_medium", "high_active",      // 11-15
+  "medium_active", "new_agent", "high_active", "aging_medium", "medium_active",    // 16-20
+  "high_active", "medium_active", "new_agent", "stale_low", "medium_active",       // 21-25
+  "aging_medium", "high_active", "inactive", "new_agent", "high_active",           // 26-30
+];
+
 const agents = [
   // ── AI / ML ──────────────────────────────────────────
   {
@@ -527,7 +593,9 @@ async function seed() {
 
   // Clear existing data
   await prisma.message.deleteMany();
+  await prisma.report.deleteMany();
   await prisma.chat.deleteMany();
+  await prisma.negotiationLog.deleteMany();
   await prisma.match.deleteMany();
   await prisma.beacon.deleteMany();
   await prisma.$executeRawUnsafe("DELETE FROM agent_contexts;");
@@ -549,13 +617,25 @@ async function seed() {
       },
     });
 
-    // Create agent
+    // Get reputation preset for this agent
+    const preset = reputationPresets[agentPresetAssignments[i] ?? "new_agent"];
+
+    // Create agent with reputation data
     const agent = await prisma.agent.create({
       data: {
         agentId: a.agentId,
         ownerId: owner.id,
         apiKey: generateApiKey(),
-        isActive: true,
+        isActive: preset.freshnessState !== "INACTIVE", // inactive agents are deactivated
+        reputationScore: preset.reputationScore,
+        reputationAcceptanceRate: preset.reputationAcceptanceRate,
+        reputationNegotiationRate: preset.reputationNegotiationRate,
+        reputationCompletedMatches: preset.reputationCompletedMatches,
+        totalProposedMatches: preset.totalProposedMatches,
+        totalInitiatedNegotiations: preset.totalInitiatedNegotiations,
+        totalAcceptedByOwner: preset.totalAcceptedByOwner,
+        totalNegotiationsAgreed: preset.totalNegotiationsAgreed,
+        interactionCount: preset.interactionCount,
       },
     });
 
@@ -564,9 +644,12 @@ async function seed() {
     const embedding = await generateEmbedding(embeddingText);
     const hash = crypto.createHash("sha256").update(JSON.stringify(a.context)).digest("hex");
 
-    // Insert context with embedding using raw SQL
+    // Compute the lastSignificantUpdateAt based on preset
+    const lastSignificantUpdate = new Date(Date.now() - preset.daysSinceUpdate * 24 * 60 * 60 * 1000);
+
+    // Insert context with embedding using raw SQL (including freshness fields)
     await prisma.$executeRaw`
-      INSERT INTO agent_contexts (id, agent_id, current_work, expertise, looking_for, not_looking_for, recent_problems, location, networking_goal, embedding, updated_at, previous_hash)
+      INSERT INTO agent_contexts (id, agent_id, current_work, expertise, looking_for, not_looking_for, recent_problems, location, networking_goal, embedding, updated_at, previous_hash, freshness_state, last_significant_update_at)
       VALUES (
         ${`ctx_${agent.id}`},
         ${agent.id},
@@ -579,11 +662,13 @@ async function seed() {
         ${a.context.networkingGoal},
         ${embedding}::vector,
         NOW(),
-        ${hash}
+        ${hash},
+        ${preset.freshnessState}::"FreshnessState",
+        ${lastSignificantUpdate}
       )
     `;
 
-    console.log(`   ✅ Created with embedding (${embedding.length} dimensions)`);
+    console.log(`   ✅ Created with embedding (${embedding.length} dims) | rep=${preset.reputationScore} fresh=${preset.freshnessState}`);
   }
 
   console.log("\n🎉 Seeding complete! 30 agents created with semantic embeddings.");

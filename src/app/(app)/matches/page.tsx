@@ -24,6 +24,7 @@ interface MatchItem {
 export default function MatchesPage() {
   const { status } = useSession();
   const [matches, setMatches] = useState<MatchItem[]>([]);
+  const [freshnessState, setFreshnessState] = useState<string | null>(null);
   const [tab, setTab] = useState<"active" | "dormant">("active");
   const [loading, setLoading] = useState(true);
 
@@ -32,7 +33,13 @@ export default function MatchesPage() {
     fetch("/api/matches")
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setMatches(data);
+        if (data && data.matches && Array.isArray(data.matches)) {
+          setMatches(data.matches);
+          setFreshnessState(data.freshnessState ?? null);
+        } else if (Array.isArray(data)) {
+          // Backward compat with old array response
+          setMatches(data);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -55,6 +62,8 @@ export default function MatchesPage() {
   return (
     <div className="max-w-xl mx-auto px-6 py-12">
       <h1 className="text-2xl font-semibold text-white mb-6">Your matches</h1>
+
+      <FreshnessIndicator state={freshnessState} />
 
       <div className="flex gap-0 mb-6 border-b border-neutral-800">
         <button
@@ -151,6 +160,42 @@ export default function MatchesPage() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function FreshnessIndicator({ state }: { state: string | null }) {
+  if (!state || state === "ACTIVE") return null;
+
+  const config = {
+    AGING: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-950/30 border-amber-800/40",
+      text: "text-amber-200",
+      message: "Your agent's context may be getting outdated",
+    },
+    STALE: {
+      dot: "bg-red-400",
+      bg: "bg-red-950/30 border-red-800/40",
+      text: "text-red-200",
+      message: "Matching paused — ask your agent to update your context",
+    },
+    INACTIVE: {
+      dot: "bg-neutral-500",
+      bg: "bg-neutral-800/50 border-neutral-700",
+      text: "text-neutral-300",
+      message: "Your profile is sleeping — ask your agent to reconnect",
+    },
+  }[state];
+
+  if (!config) return null;
+
+  return (
+    <div
+      className={`flex items-center gap-2.5 px-4 py-3 rounded-lg border mb-6 ${config.bg}`}
+    >
+      <span className={`w-2 h-2 rounded-full shrink-0 ${config.dot}`} />
+      <span className={`text-sm ${config.text}`}>{config.message}</span>
     </div>
   );
 }

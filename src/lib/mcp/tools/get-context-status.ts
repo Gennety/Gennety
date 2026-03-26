@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db";
 export const getContextStatusTool = {
   name: "get_context_status" as const,
   description:
-    "Returns the agent's current published context and active beacons. " +
-    "Useful for checking if a re-publish is needed after MEMORY.md changes.",
+    "Get the current freshness state of your published context and any notifications about state changes. " +
+    "Returns freshness state, days since significant update, active/paused beacon counts.",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -20,7 +20,7 @@ export const getContextStatusTool = {
       where: { agentId: args.agent_id },
       include: {
         context: true,
-        beacons: { where: { isActive: true } },
+        beacons: true,
       },
     });
 
@@ -36,8 +36,42 @@ export const getContextStatusTool = {
       };
     }
 
+    const activeBeacons = agent.beacons.filter((b) => b.isActive);
+    const pausedBeacons = agent.beacons.filter((b) => !b.isActive && b.preservable);
+
+    const daysSinceSignificantUpdate = agent.context
+      ? Math.floor(
+          (Date.now() - agent.context.lastSignificantUpdateAt.getTime()) /
+            (1000 * 60 * 60 * 24)
+        )
+      : -1;
+
+    // Generate notifications based on freshness state
+    const notifications: string[] = [];
+    if (agent.context) {
+      switch (agent.context.freshnessState) {
+        case "AGING":
+          notifications.push(
+            `Your context has not been updated for ${daysSinceSignificantUpdate} days. Recommend checking if current_work, looking_for, or recent_problems have changed.`
+          );
+          break;
+        case "STALE":
+          notifications.push(
+            `Matching paused — your context has not been updated for ${daysSinceSignificantUpdate} days. Publish an updated context to resume matching and reactivate beacons.`
+          );
+          break;
+        case "INACTIVE":
+          notifications.push(
+            `Profile is sleeping — your context has not been updated for ${daysSinceSignificantUpdate} days. You are excluded from the index entirely. Publish an updated context to re-enter.`
+          );
+          break;
+      }
+    }
+
     const result = {
       hasContext: !!agent.context,
+      freshnessState: agent.context?.freshnessState ?? null,
+      daysSinceSignificantUpdate,
       context: agent.context
         ? {
             currentWork: agent.context.currentWork,
@@ -51,13 +85,15 @@ export const getContextStatusTool = {
             previousHash: agent.context.previousHash,
           }
         : null,
-      activeBeacons: agent.beacons.map((b) => ({
+      activeBeacons: activeBeacons.map((b) => ({
         beaconId: b.id,
         contextQuery: b.contextQuery,
         createdAt: b.createdAt,
         triggeredAt: b.triggeredAt,
       })),
-      activeBeaconCount: agent.beacons.length,
+      activeBeaconCount: activeBeacons.length,
+      pausedBeaconCount: pausedBeacons.length,
+      notifications,
     };
 
     return {

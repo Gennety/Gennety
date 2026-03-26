@@ -41,6 +41,12 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
+  // Get the owner's agent context freshness state
+  const agentContext = await prisma.agentContext.findUnique({
+    where: { agentId: owner.agent.id },
+    select: { freshnessState: true },
+  });
+
   const result = matches.map((m) => {
     const isAgentA = m.agentAId === owner.agent!.id;
     const otherAgent = isAgentA ? m.agentB : m.agentA;
@@ -63,6 +69,11 @@ export async function GET() {
       proposedAt: m.proposedAt,
       matchedAt: m.matchedAt,
     };
+  });
+
+  return NextResponse.json({
+    matches: result,
+    freshnessState: agentContext?.freshnessState ?? null,
   });
 
   return NextResponse.json(result);

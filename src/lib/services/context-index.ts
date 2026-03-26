@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db";
 import { generateEmbedding, contextToEmbeddingText } from "@/lib/embeddings";
 import { ContextSchema } from "@/types/context";
-import crypto from "crypto";
+import {
+  computeContextHash,
+  isSignificantUpdate,
+  updateFreshness,
+} from "@/lib/services/freshness";
+import { recordEvent } from "@/lib/services/reputation";
 
 interface RawContextInput {
   current_work: string;
@@ -13,10 +18,6 @@ interface RawContextInput {
   networking_goal: string;
 }
 
-function hashContext(context: RawContextInput): string {
-  return crypto.createHash("sha256").update(JSON.stringify(context)).digest("hex");
-}
-
 export async function publishContext(agentId: string, rawContext: RawContextInput) {
   const context = ContextSchema.parse(rawContext);
   const agent = await prisma.agent.findUnique({
@@ -26,8 +27,14 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
 
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
-  const newHash = hashContext(context);
-  const contextChanged = agent.context?.previousHash !== newHash;
+  // Compute hash of KEY fields only (current_work, looking_for, recent_problems)
+  const newKeyHash = computeContextHash({
+    current_work: context.current_work,
+    looking_for: context.looking_for,
+    recent_problems: context.recent_problems,
+  });
+  const significant = isSignificantUpdate(newKeyHash, agent.context?.previousHash ?? null);
+  const contextChanged = significant;
 
   // Generate embedding from context text
   const embeddingText = contextToEmbeddingText({
@@ -42,7 +49,7 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
 
   // Upsert context with embedding
   await prisma.$executeRaw`
-    INSERT INTO agent_contexts (id, agent_id, current_work, expertise, looking_for, not_looking_for, recent_problems, location, networking_goal, embedding, updated_at, previous_hash)
+    INSERT INTO agent_contexts (id, agent_id, current_work, expertise, looking_for, not_looking_for, recent_problems, location, networking_goal, embedding, updated_at, previous_hash, freshness_state, last_significant_update_at)
     VALUES (
       ${generateCuid()},
       ${agent.id},
@@ -55,7 +62,9 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
       ${context.networking_goal},
       ${embedding}::vector,
       NOW(),
-      ${newHash}
+      ${newKeyHash},
+      'ACTIVE',
+      NOW()
     )
     ON CONFLICT (agent_id) DO UPDATE SET
       current_work = EXCLUDED.current_work,
@@ -100,9 +109,18 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
     });
   }
 
+  // Update freshness state based on whether this was a significant update
+  const freshnessState = await updateFreshness(agent.id, significant);
+
+  // If significant update, record reputation event
+  if (significant) {
+    await recordEvent(agent.id, "CONTEXT_UPDATED");
+  }
+
   return {
     published: true,
     contextChanged,
+    freshnessState,
     beaconsTriggered: triggeredBeacons.length,
     triggeredBeaconAgents: triggeredBeacons.map((b) => b.agent_id),
   };

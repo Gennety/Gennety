@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { sendMatchProposalEmail } from "@/lib/services/notification";
 import { createChatWithOpeningMessages } from "@/lib/services/chat";
+import { recordEvent } from "@/lib/services/reputation";
 
 /**
  * NegotiationFSM — state machine for agent-to-agent match negotiation
@@ -96,6 +97,8 @@ export async function initiateNegotiation(
       expertise: agentA.context.expertise,
       lookingFor: agentA.context.lookingFor,
       networkingGoal: agentA.context.networkingGoal,
+      reputationScore: Math.round(agentA.reputationScore),
+      freshnessState: agentA.context.freshnessState,
     },
     agentB: {
       agentId: targetAgentId,
@@ -103,6 +106,8 @@ export async function initiateNegotiation(
       expertise: agentB.context.expertise,
       lookingFor: agentB.context.lookingFor,
       networkingGoal: agentB.context.networkingGoal,
+      reputationScore: Math.round(agentB.reputationScore),
+      freshnessState: agentB.context.freshnessState,
     },
   };
 }
@@ -153,6 +158,11 @@ export async function negotiate(
         content: evaluation || "Declined without explanation.",
       },
     });
+
+    // Record reputation event for the initiating agent (negotiation was declined)
+    // Find the initiator — the other agent from the one who declined
+    const initiatorId = isAgentA ? match.agentBId : match.agentAId;
+    await recordEvent(initiatorId, "NEGOTIATION_DECLINED");
 
     return { matchId, status: "DECLINED", message: "Negotiation declined" };
   }
@@ -257,6 +267,15 @@ export async function proposeMatch(matchId: string) {
     },
   });
 
+  // Record negotiation agreed for the initiating agent (agentA)
+  await recordEvent(match.agentAId, "NEGOTIATION_AGREED");
+
+  // Record MATCH_PROPOSED for both agents (increments totalProposedMatches)
+  await Promise.all([
+    recordEvent(match.agentAId, "MATCH_PROPOSED"),
+    recordEvent(match.agentBId, "MATCH_PROPOSED"),
+  ]);
+
   // Send email notifications to both owners (non-blocking)
   Promise.all([
     sendMatchProposalEmail({
@@ -319,6 +338,10 @@ export async function confirmMatch(matchId: string, ownerId: string) {
     data: updateData,
   });
 
+  // Record MATCH_ACCEPTED for the agent whose owner just confirmed
+  const confirmingAgentId = isOwnerA ? match.agentAId : match.agentBId;
+  await recordEvent(confirmingAgentId, "MATCH_ACCEPTED");
+
   // Check if both confirmed
   const newConfirmedByA = isOwnerA ? true : match.confirmedByA;
   const newConfirmedByB = isOwnerB ? true : match.confirmedByB;
@@ -332,6 +355,12 @@ export async function confirmMatch(matchId: string, ownerId: string) {
     });
 
     const chat = await createChatWithOpeningMessages(matchId);
+
+    // Record MATCH_COMPLETED for both agents
+    await Promise.all([
+      recordEvent(match.agentAId, "MATCH_COMPLETED"),
+      recordEvent(match.agentBId, "MATCH_COMPLETED"),
+    ]);
 
     return {
       matchId,

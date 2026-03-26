@@ -16,6 +16,7 @@ import { getContextStatusTool } from "./tools/get-context-status";
 import { reportChatTool } from "./tools/report-chat";
 import { blockUserTool } from "./tools/block-user";
 import { archiveChatTool } from "./tools/archive-chat";
+import { getReputationTool } from "./tools/get-reputation";
 
 const tools = [
   publishContextTool,
@@ -28,6 +29,7 @@ const tools = [
   markDormantTool,
   getMatchesTool,
   getContextStatusTool,
+  getReputationTool,
   reportChatTool,
   blockUserTool,
   archiveChatTool,
