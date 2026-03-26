@@ -32,8 +32,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Run DB migrations using pinned prisma version from node_modules
-            docker compose -f docker-compose.prod.yml run --rm app node_modules/.bin/prisma migrate deploy
+            # Install deps and run DB migrations directly on server (not in container)
+            cd /opt/gennety
+            npm ci --prefer-offline 2>/dev/null || npm ci
+            node_modules/.bin/prisma migrate deploy
 
             # Rebuild and restart (only app service, DB is Supabase)
             docker compose -f docker-compose.prod.yml up -d --build --remove-orphans app
