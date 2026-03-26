@@ -27,6 +27,10 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request });
 
   if (!token) {
+    // API routes must return JSON, never redirect to an HTML page
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
@@ -34,6 +38,9 @@ export async function middleware(request: NextRequest) {
 
   // Authenticated but not onboarded — redirect to onboarding
   if (!token.onboarded && pathname !== "/onboarding" && pathname !== "/api/onboarding") {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Onboarding required" }, { status: 403 });
+    }
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 

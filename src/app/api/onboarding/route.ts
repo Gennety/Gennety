@@ -9,15 +9,14 @@ import crypto from "crypto";
 import { sendTelegramNotification } from "@/lib/services/telegram";
 
 export async function POST(request: NextRequest) {
-  const rateLimited = rateLimit(request, { maxRequests: 5, windowMs: 60_000, keyPrefix: "onboarding" });
-  if (rateLimited) return rateLimited;
-
-  const auth = await getAuthenticatedOwner();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized — please log in first" }, { status: 401 });
-  }
-
   try {
+    const rateLimited = rateLimit(request, { maxRequests: 5, windowMs: 60_000, keyPrefix: "onboarding" });
+    if (rateLimited) return rateLimited;
+
+    const auth = await getAuthenticatedOwner();
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized — please log in first" }, { status: 401 });
+    }
     let body;
     try {
       body = await request.json();
