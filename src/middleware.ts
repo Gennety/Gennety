@@ -2,23 +2,66 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const APP_HOST = process.env.NEXT_PUBLIC_APP_URL
+  ? new URL(process.env.NEXT_PUBLIC_APP_URL).host
+  : null; // e.g. "app.gennety.com"
+
+const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL ?? "";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
+// Routes that belong on the landing domain only
+const landingExact = ["/", "/feed", "/cookie-policy", "/privacy", "/terms"];
+
+// Routes that belong on the app subdomain
+const appPrefixes = ["/home", "/matches", "/profile", "/activity", "/notify", "/chat", "/onboarding"];
+const appExact = ["/login", "/forgot-password", "/reset-password"];
+
+// Public API routes — no auth required
+const publicApiPrefixes = ["/api/auth", "/api/feed", "/api/mcp", "/api/soul", "/api/track", "/api/oauth", "/api/.well-known", "/api/a2a", "/api/cron", "/api/stats"];
+
+function isAppRoute(pathname: string) {
+  return (
+    appExact.includes(pathname) ||
+    appPrefixes.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/api/")
+  );
+}
+
+function isLandingRoute(pathname: string) {
+  return landingExact.includes(pathname) || pathname.startsWith("/feed/");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const host = request.headers.get("host") ?? "";
+
+  // --- Subdomain routing (only in production when APP_HOST is set) ---
+  if (APP_HOST && host !== APP_HOST && isAppRoute(pathname)) {
+    // Someone hit gennety.com/login or gennety.com/matches → redirect to app subdomain
+    return NextResponse.redirect(new URL(pathname + request.nextUrl.search, APP_URL));
+  }
+
+  if (APP_HOST && host === APP_HOST && isLandingRoute(pathname)) {
+    // Someone hit app.gennety.com/ or app.gennety.com/feed → redirect to landing
+    return NextResponse.redirect(new URL(pathname + request.nextUrl.search, LANDING_URL));
+  }
+
+  // --- Auth logic (unchanged, applies to both domains) ---
 
   // Public paths — no auth required
-  const publicPrefixes = ["/api/auth", "/api/feed", "/api/mcp", "/api/soul", "/api/track"];
-  const publicExact = ["/", "/login", "/feed", "/cookie-policy", "/privacy", "/terms"];
+  const isPublic =
+    landingExact.includes(pathname) ||
+    appExact.includes(pathname) ||
+    publicApiPrefixes.some((p) => pathname.startsWith(p)) ||
+    pathname.startsWith("/feed/");
 
-  if (
-    publicExact.includes(pathname) ||
-    publicPrefixes.some((p) => pathname.startsWith(p)) ||
-    pathname.startsWith("/feed/")
-  ) {
-    // If already logged in and going to /login, redirect to matches
+  if (isPublic) {
+    // If already logged in and going to /login, redirect to /home
     if (pathname === "/login") {
       const token = await getToken({ req: request });
       if (token) {
-        return NextResponse.redirect(new URL("/matches", request.url));
+        const homeUrl = APP_URL ? new URL("/home", APP_URL) : new URL("/home", request.url);
+        return NextResponse.redirect(homeUrl);
       }
     }
     return NextResponse.next();
@@ -27,11 +70,12 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request });
 
   if (!token) {
-    // API routes must return JSON, never redirect to an HTML page
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = APP_URL
+      ? new URL("/login", APP_URL)
+      : new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -41,7 +85,10 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Onboarding required" }, { status: 403 });
     }
-    return NextResponse.redirect(new URL("/onboarding", request.url));
+    const onboardingUrl = APP_URL
+      ? new URL("/onboarding", APP_URL)
+      : new URL("/onboarding", request.url);
+    return NextResponse.redirect(onboardingUrl);
   }
 
   return NextResponse.next();

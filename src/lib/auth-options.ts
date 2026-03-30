@@ -4,12 +4,56 @@ import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
 
+// Cookie domain for cross-subdomain session sharing (e.g. ".gennety.com")
+const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN || undefined;
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   pages: {
     signIn: "/login",
   },
+
+  cookies: cookieDomain
+    ? {
+        sessionToken: {
+          name: useSecureCookies
+            ? "__Secure-next-auth.session-token"
+            : "next-auth.session-token",
+          options: {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            secure: useSecureCookies,
+            domain: cookieDomain,
+          },
+        },
+        callbackUrl: {
+          name: useSecureCookies
+            ? "__Secure-next-auth.callback-url"
+            : "next-auth.callback-url",
+          options: {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            secure: useSecureCookies,
+            domain: cookieDomain,
+          },
+        },
+        csrfToken: {
+          name: useSecureCookies
+            ? "__Host-next-auth.csrf-token"
+            : "next-auth.csrf-token",
+          options: {
+            httpOnly: true,
+            sameSite: "lax",
+            path: "/",
+            secure: useSecureCookies,
+          },
+        },
+      }
+    : undefined,
 
   providers: [
     GoogleProvider({

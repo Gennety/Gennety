@@ -14,9 +14,11 @@ export default function LoginPage() {
   );
 }
 
+const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL ?? "";
+
 function LoginContent() {
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/matches";
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/home";
   const authError = searchParams.get("error");
 
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -78,12 +80,12 @@ function LoginContent() {
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="mb-10 text-center">
-          <Link
-            href="/"
+          <a
+            href={landingUrl || "/"}
             className="text-3xl font-bold tracking-tight text-white hover:text-neutral-300 transition-colors"
           >
             Gennety
-          </Link>
+          </a>
           <p className="mt-2 text-sm text-neutral-500">
             {mode === "login" ? "Welcome back" : "Create your account"}
           </p>
@@ -150,6 +152,17 @@ function LoginContent() {
             minLength={mode === "signup" ? 8 : undefined}
             className="w-full p-3 rounded-lg bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-600 text-sm focus:outline-none focus:border-neutral-600"
           />
+
+          {mode === "login" && (
+            <div className="flex justify-end">
+              <Link
+                href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+                className="text-xs text-neutral-500 hover:text-white transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-400 text-center">{error}</p>

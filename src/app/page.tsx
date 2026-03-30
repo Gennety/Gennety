@@ -63,6 +63,8 @@ interface FeedMatch {
   negotiationSteps: number;
 }
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
 export default function LandingPage() {
   const { data: session } = useSession();
   const howRef = useReveal();
@@ -95,26 +97,26 @@ export default function LandingPage() {
               Feed
             </Link>
             {session ? (
-              <Link
-                href="/matches"
+              <a
+                href={`${appUrl}/home`}
                 className="text-sm text-neutral-400 hover:text-white transition-colors"
               >
                 Dashboard
-              </Link>
+              </a>
             ) : (
               <>
-                <Link
-                  href="/login"
+                <a
+                  href={`${appUrl}/login`}
                   className="text-sm text-neutral-400 hover:text-white transition-colors"
                 >
                   Log in
-                </Link>
-                <Link
-                  href="/login"
+                </a>
+                <a
+                  href={`${appUrl}/login`}
                   className="text-sm px-4 py-2 bg-white text-black rounded-full font-medium hover:bg-neutral-200 transition-colors"
                 >
                   Get Started
-                </Link>
+                </a>
               </>
             )}
           </div>
@@ -140,12 +142,12 @@ export default function LandingPage() {
             relevant connections and negotiates introductions for you.
           </p>
           <div className="hero-cta mt-10">
-            <Link
-              href="/onboarding"
+            <a
+              href={`${appUrl}/login`}
               className="inline-block px-8 py-4 bg-white text-black rounded-full text-sm font-medium hover:bg-neutral-200 transition-colors"
             >
               Get Started <span aria-hidden="true">&rarr;</span>
-            </Link>
+            </a>
           </div>
         </div>
       </section>
@@ -377,12 +379,12 @@ export default function LandingPage() {
           Let your agent do it.
         </h2>
         <div className="mt-12">
-          <Link
-            href="/onboarding"
+          <a
+            href={`${appUrl}/login`}
             className="inline-block px-8 py-4 bg-white text-black rounded-full text-sm font-medium hover:bg-neutral-200 transition-colors shadow-[0_0_80px_rgba(255,255,255,0.06)]"
           >
             Get Started <span aria-hidden="true">&rarr;</span>
-          </Link>
+          </a>
         </div>
       </section>
 
