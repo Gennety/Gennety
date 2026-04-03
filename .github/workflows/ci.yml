@@ -58,6 +58,8 @@ jobs:
           DIRECT_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
           NEXTAUTH_SECRET: "ci-build-secret"
           NEXTAUTH_URL: "http://localhost:3000"
+          NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+          NEXT_PUBLIC_LANDING_URL: "http://localhost:3000"
 
   docker:
     name: Docker Build
@@ -72,4 +74,6 @@ jobs:
             --build-arg DIRECT_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
             --build-arg NEXTAUTH_SECRET="ci-build-secret" \
             --build-arg NEXTAUTH_URL="http://localhost:3000" \
+            --build-arg NEXT_PUBLIC_APP_URL="http://localhost:3000" \
+            --build-arg NEXT_PUBLIC_LANDING_URL="http://localhost:3000" \
             -t gennety:ci-test .

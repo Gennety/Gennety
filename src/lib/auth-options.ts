@@ -10,6 +10,7 @@ const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN || undefined;
 const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
 
 export const authOptions: NextAuthOptions = {
+  debug: process.env.NODE_ENV === "development",
   session: { strategy: "jwt" },
 
   pages: {
@@ -94,36 +95,69 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        // Link Google account to existing or new Owner
-        const existing = await prisma.owner.findUnique({
-          where: { email: user.email! },
-        });
-
-        let isNewUser = false;
-
-        if (existing) {
-          // Update image/name if not set
-          await prisma.owner.update({
-            where: { id: existing.id },
-            data: {
-              emailVerified: new Date(),
-              image: existing.image ?? user.image,
-              name: existing.name ?? user.name,
-            },
+        try {
+          // Link Google account to existing or new Owner
+          const existing = await prisma.owner.findUnique({
+            where: { email: user.email! },
           });
 
-          // Link Google account if not already linked
-          const linked = await prisma.account.findFirst({
-            where: {
-              userId: existing.id,
-              provider: "google",
-            },
-          });
+          let isNewUser = false;
 
-          if (!linked) {
+          if (existing) {
+            // Update image/name if not set
+            await prisma.owner.update({
+              where: { id: existing.id },
+              data: {
+                emailVerified: new Date(),
+                image: existing.image ?? user.image,
+                name: existing.name ?? user.name,
+              },
+            });
+
+            // Link Google account if not already linked
+            const linked = await prisma.account.findFirst({
+              where: {
+                userId: existing.id,
+                provider: "google",
+              },
+            });
+
+            if (!linked) {
+              await prisma.account.create({
+                data: {
+                  userId: existing.id,
+                  type: account.type,
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                  access_token: account.access_token as string | undefined,
+                  refresh_token: account.refresh_token as string | undefined,
+                  expires_at: account.expires_at as number | undefined,
+                  token_type: account.token_type as string | undefined,
+                  scope: account.scope as string | undefined,
+                  id_token: account.id_token as string | undefined,
+                },
+              });
+            }
+
+            user.id = existing.id;
+            user.onboarded = existing.onboarded;
+          } else {
+            isNewUser = true;
+
+            // Create new Owner from Google profile
+            const newOwner = await prisma.owner.create({
+              data: {
+                email: user.email!,
+                name: user.name,
+                image: user.image,
+                emailVerified: new Date(),
+                onboarded: false,
+              },
+            });
+
             await prisma.account.create({
               data: {
-                userId: existing.id,
+                userId: newOwner.id,
                 type: account.type,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
@@ -135,55 +169,27 @@ export const authOptions: NextAuthOptions = {
                 id_token: account.id_token as string | undefined,
               },
             });
+
+            user.id = newOwner.id;
+            user.onboarded = false;
           }
 
-          user.id = existing.id;
-          user.onboarded = existing.onboarded;
-        } else {
-          isNewUser = true;
+          // Telegram notification for Google login/signup — fire-and-forget
+          const title = isNewUser ? "New Signup (Google)" : "User Login (Google)";
+          const tgLines = [
+            `<b>${title}</b>`,
+            ``,
+            `Email: <code>${user.email}</code>`,
+            user.name ? `Name: ${user.name}` : null,
+            `Method: Google OAuth`,
+            isNewUser ? null : `Onboarded: ${user.onboarded ? "Yes" : "No"}`,
+          ].filter((l): l is string => l !== null);
 
-          // Create new Owner from Google profile
-          const newOwner = await prisma.owner.create({
-            data: {
-              email: user.email!,
-              name: user.name,
-              image: user.image,
-              emailVerified: new Date(),
-              onboarded: false,
-            },
-          });
-
-          await prisma.account.create({
-            data: {
-              userId: newOwner.id,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-              access_token: account.access_token as string | undefined,
-              refresh_token: account.refresh_token as string | undefined,
-              expires_at: account.expires_at as number | undefined,
-              token_type: account.token_type as string | undefined,
-              scope: account.scope as string | undefined,
-              id_token: account.id_token as string | undefined,
-            },
-          });
-
-          user.id = newOwner.id;
-          user.onboarded = false;
+          sendTelegramNotification(tgLines.join("\n")).catch(() => {});
+        } catch (err) {
+          console.error("[auth] Google signIn callback error:", err);
+          return false;
         }
-
-        // Telegram notification for Google login/signup — fire-and-forget
-        const title = isNewUser ? "New Signup (Google)" : "User Login (Google)";
-        const tgLines = [
-          `<b>${title}</b>`,
-          ``,
-          `Email: <code>${user.email}</code>`,
-          user.name ? `Name: ${user.name}` : null,
-          `Method: Google OAuth`,
-          isNewUser ? null : `Onboarded: ${user.onboarded ? "Yes" : "No"}`,
-        ].filter((l): l is string => l !== null);
-
-        sendTelegramNotification(tgLines.join("\n")).catch(() => {});
       }
 
       // Telegram notification for credentials login

@@ -31,6 +31,12 @@ function isLandingRoute(pathname: string) {
   return landingExact.includes(pathname) || pathname.startsWith("/feed/");
 }
 
+// Determine cookie name the same way auth-options does
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
+const sessionCookieName = useSecureCookies
+  ? "__Secure-next-auth.session-token"
+  : "next-auth.session-token";
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") ?? "";
@@ -58,7 +64,12 @@ export async function middleware(request: NextRequest) {
   if (isPublic) {
     // If already logged in and going to /login, redirect to /home
     if (pathname === "/login") {
-      const token = await getToken({ req: request });
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+        secureCookie: useSecureCookies,
+        cookieName: sessionCookieName,
+      });
       if (token) {
         const homeUrl = APP_URL ? new URL("/home", APP_URL) : new URL("/home", request.url);
         return NextResponse.redirect(homeUrl);
@@ -67,9 +78,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({ req: request });
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: useSecureCookies,
+    cookieName: sessionCookieName,
+  });
 
   if (!token) {
+    // Log cookie state when token is missing on protected routes (helps debug auth issues)
+    const allCookies = request.cookies.getAll().map((c) => c.name);
+    const hasSession = allCookies.some((n) => n.startsWith(sessionCookieName));
+    console.warn(`[middleware] ${pathname} — no token | cookie=${sessionCookieName} present=${hasSession} | secret=${!!process.env.NEXTAUTH_SECRET} secure=${useSecureCookies}`);
+
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

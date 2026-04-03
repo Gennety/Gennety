@@ -133,6 +133,7 @@
     "invalidCredentials": "Invalid email or password.",
     "signupFailed": "Account created but sign-in failed. Try logging in.",
     "oauthConflict": "This email is already registered with a different sign-in method.",
+    "oauthError": "Google sign-in failed. Please try again.",
     "signIn": "Sign in",
     "signingIn": "Signing in...",
     "createAccountBtn": "Create account",

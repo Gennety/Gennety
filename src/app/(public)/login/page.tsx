@@ -68,7 +68,9 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(
     authError === "OAuthAccountNotLinked"
       ? t("auth.oauthConflict")
-      : null
+      : authError
+        ? t("auth.oauthError")
+        : null
   );
 
   async function handleCredentials(e: React.FormEvent) {

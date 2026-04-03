@@ -133,6 +133,7 @@
     "invalidCredentials": "邮箱或密码无效。",
     "signupFailed": "账户已创建但登录失败。请尝试登录。",
     "oauthConflict": "此邮箱已使用其他登录方式注册。",
+    "oauthError": "Google 登录失败，请重试。",
     "signIn": "登录",
     "signingIn": "登录中...",
     "createAccountBtn": "创建账户",
