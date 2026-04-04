@@ -78,18 +78,28 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-    secureCookie: useSecureCookies,
-    cookieName: sessionCookieName,
-  });
+  let token;
+  try {
+    token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+      secureCookie: useSecureCookies,
+      cookieName: sessionCookieName,
+    });
+  } catch (err) {
+    console.error(`[middleware] getToken() threw for ${pathname}:`, err);
+  }
 
   if (!token) {
-    // Log cookie state when token is missing on protected routes (helps debug auth issues)
-    const allCookies = request.cookies.getAll().map((c) => c.name);
-    const hasSession = allCookies.some((n) => n.startsWith(sessionCookieName));
-    console.warn(`[middleware] ${pathname} — no token | cookie=${sessionCookieName} present=${hasSession} | secret=${!!process.env.NEXTAUTH_SECRET} secure=${useSecureCookies}`);
+    // Detailed logging for auth debugging (visible in Docker logs)
+    const allCookies = request.cookies.getAll();
+    const cookieNames = allCookies.map((c) => c.name);
+    const sessionRelated = cookieNames.filter((n) => n.includes("next-auth"));
+    console.warn(`[middleware] ${pathname} — NO TOKEN`);
+    console.warn(`[middleware]   expected cookie: "${sessionCookieName}"`);
+    console.warn(`[middleware]   next-auth cookies: [${sessionRelated.join(", ")}]`);
+    console.warn(`[middleware]   all cookies (${cookieNames.length}): [${cookieNames.join(", ")}]`);
+    console.warn(`[middleware]   NEXTAUTH_URL=${process.env.NEXTAUTH_URL} secret=${!!process.env.NEXTAUTH_SECRET} secure=${useSecureCookies}`);
 
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -100,6 +110,8 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
+
+  console.log(`[middleware] ${pathname} — token OK for ${token.email} (onboarded=${token.onboarded})`);
 
   // Authenticated but not onboarded — redirect to onboarding
   if (!token.onboarded && pathname !== "/onboarding" && pathname !== "/api/onboarding") {

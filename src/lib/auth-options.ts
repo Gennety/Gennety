@@ -6,8 +6,12 @@ import { sendTelegramNotification } from "@/lib/services/telegram";
 import bcrypt from "bcryptjs";
 
 // Cookie domain for cross-subdomain session sharing (e.g. ".gennety.com")
-const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN || undefined;
+// Strip surrounding quotes to be safe across different env-file parsers
+const cookieDomain = process.env.NEXTAUTH_COOKIE_DOMAIN?.replace(/^["']|["']$/g, "") || undefined;
 const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
+
+// Log cookie config once on cold start (visible in Docker logs)
+console.log(`[auth] cookie config — domain=${cookieDomain ?? "(auto)"} secure=${useSecureCookies} NEXTAUTH_URL=${process.env.NEXTAUTH_URL}`);
 
 export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
@@ -92,7 +96,29 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
 
+  events: {
+    signIn: ({ user, account }) => {
+      console.log(`[auth] signIn event — ${user.email} via ${account?.provider} — JWT cookie will be set`);
+    },
+  },
+
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Explicit redirect callback with logging for production debugging
+      if (url.startsWith("/")) {
+        console.log(`[auth] redirect: "${url}" → "${baseUrl}${url}"`);
+        return `${baseUrl}${url}`;
+      }
+      try {
+        if (new URL(url).origin === baseUrl) {
+          console.log(`[auth] redirect: same-origin "${url}"`);
+          return url;
+        }
+      } catch { /* invalid URL, fall through */ }
+      console.log(`[auth] redirect: fallback to baseUrl "${baseUrl}" (url was "${url}")`);
+      return baseUrl;
+    },
+
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
