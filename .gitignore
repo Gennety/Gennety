@@ -25,10 +25,20 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# local env files — NEVER commit secrets
 .env
 .env.production
+.env.local
+.env.development
 .env*.local
+
+# secrets & credentials (safety net)
+*.key
+*.secret
+*.p12
+*.pfx
+credentials.json
+service-account*.json
 
 # vercel
 .vercel
@@ -37,6 +47,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma generated
 /src/generated/prisma
+
+# tooling
 .gstack/
 .claude/
