@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import {
@@ -58,56 +58,30 @@ function Toggle({
   );
 }
 
-/* ─── Customize modal ──────────────────────────────────────── */
+/* ─── (CustomizeModal removed — settings now render inline) ── */
 
-function CustomizeModal({
-  onSave,
-  onCancel,
-}: {
-  onSave: (consents: ConsentCategories) => void;
-  onCancel: () => void;
-}) {
+/* ─── Main banner ──────────────────────────────────────────── */
+
+export function CookieConsent() {
   const t = useTranslations("cookie");
+  const { hasConsented, submitConsent } = useCookieConsent();
+  const [hiding, setHiding] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [functional, setFunctional] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
 
-  // Focus trap
-  useEffect(() => {
-    const modal = modalRef.current;
-    if (!modal) return;
+  const dismiss = useCallback(
+    (action: "accepted" | "rejected" | "partial", consents: ConsentCategories) => {
+      setHiding(true);
+      setShowCustomize(false);
+      submitConsent(action, consents);
+    },
+    [submitConsent]
+  );
 
-    const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [tabindex]:not([tabindex="-1"])'
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    first?.focus();
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onCancel();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel]);
+  if (hasConsented) return null;
 
   const categories: {
     key: string;
@@ -149,96 +123,19 @@ function CustomizeModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("customizeTitle")}
-        className="w-full max-w-lg rounded-xl border border-[#1a1a1a] bg-[#0a0a0a] p-6 shadow-2xl"
-      >
-        <h2 className="text-lg font-semibold text-white mb-4">
-          {t("customizeTitle")}
-        </h2>
-
-        <div className="space-y-4 mb-6">
-          {categories.map((cat) => (
-            <div
-              key={cat.key}
-              className="flex items-start justify-between gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white">{cat.label}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">{cat.desc}</p>
-              </div>
-              <Toggle
-                checked={cat.checked}
-                disabled={cat.disabled}
-                onChange={cat.onChange}
-                label={cat.label}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-neutral-500 hover:text-white border border-[#2a2a2a] hover:border-[#3a3a3a] rounded-lg transition-colors"
-          >
-            {t("cancel")}
-          </button>
-          <button
-            onClick={() =>
-              onSave({
-                necessary: true,
-                analytics,
-                marketing,
-                functional,
-              })
-            }
-            className="px-5 py-2 text-sm font-medium text-black bg-white hover:bg-neutral-200 rounded-lg transition-colors"
-          >
-            {t("savePreferences")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Main banner ──────────────────────────────────────────── */
-
-export function CookieConsent() {
-  const t = useTranslations("cookie");
-  const { hasConsented, submitConsent } = useCookieConsent();
-  const [hiding, setHiding] = useState(false);
-  const [showCustomize, setShowCustomize] = useState(false);
-
-  const dismiss = useCallback(
-    (action: "accepted" | "rejected" | "partial", consents: ConsentCategories) => {
-      setHiding(true);
-      setShowCustomize(false);
-      submitConsent(action, consents);
-    },
-    [submitConsent]
-  );
-
-  if (hasConsented) return null;
-
-  return (
-    <>
-      <div
-        role="dialog"
-        aria-label="Cookie consent"
-        aria-live="polite"
-        className={`fixed bottom-0 left-0 right-0 z-[100] p-4 transition-all duration-300 ${
-          hiding ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"
-        }`}
-      >
-        <div className="max-w-2xl mx-auto rounded-xl border border-[#1a1a1a] bg-[#0a0a0a]/95 backdrop-blur-xl p-5 shadow-[0_-4px_40px_rgba(0,0,0,0.5)]">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <p className="text-sm text-neutral-400 leading-relaxed flex-1">
+    <div
+      role="dialog"
+      aria-label="Cookie consent"
+      aria-live="polite"
+      className={`fixed bottom-0 left-0 right-0 z-[100] p-4 transition-all duration-300 ${
+        hiding ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"
+      }`}
+    >
+      <div className="max-w-4xl mx-auto rounded-xl border border-[#1a1a1a] bg-[#0a0a0a]/95 backdrop-blur-xl p-5 shadow-[0_-4px_40px_rgba(0,0,0,0.5)]">
+        {!showCustomize ? (
+          /* ── Default banner view ── */
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-neutral-400 leading-relaxed flex-1 line-clamp-2">
               {t("message")}{" "}
               <Link
                 href="/cookie-policy"
@@ -268,20 +165,65 @@ export function CookieConsent() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
+        ) : (
+          /* ── Inline customize view ── */
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-white">
+                {t("customizeTitle")}
+              </h2>
+              <button
+                onClick={() => setShowCustomize(false)}
+                className="px-3 py-1.5 text-xs text-neutral-500 hover:text-white border border-[#2a2a2a] hover:border-[#3a3a3a] rounded-lg transition-colors"
+              >
+                {t("cancel")}
+              </button>
+            </div>
 
-      {showCustomize && (
-        <CustomizeModal
-          onSave={(consents) => {
-            const allTrue = consents.analytics && consents.marketing && consents.functional;
-            const allFalse = !consents.analytics && !consents.marketing && !consents.functional;
-            const action = allTrue ? "accepted" : allFalse ? "rejected" : "partial";
-            dismiss(action, consents);
-          }}
-          onCancel={() => setShowCustomize(false)}
-        />
-      )}
-    </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {categories.map((cat) => (
+                <div
+                  key={cat.key}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[#1a1a1a] px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white">{cat.label}</p>
+                    <p className="text-[11px] text-neutral-500 leading-tight mt-0.5 line-clamp-1">
+                      {cat.desc}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={cat.checked}
+                    disabled={cat.disabled}
+                    onChange={cat.onChange}
+                    label={cat.label}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  const consents: ConsentCategories = {
+                    necessary: true,
+                    analytics,
+                    marketing,
+                    functional,
+                  };
+                  const allTrue = analytics && marketing && functional;
+                  const allFalse = !analytics && !marketing && !functional;
+                  const action = allTrue ? "accepted" : allFalse ? "rejected" : "partial";
+                  dismiss(action, consents);
+                }}
+                className="px-5 py-2 text-sm font-medium text-black bg-white hover:bg-neutral-200 rounded-lg transition-colors"
+              >
+                {t("savePreferences")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
