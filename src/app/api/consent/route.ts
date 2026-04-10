@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
-import { supabaseService } from "@/lib/supabase-service";
+import { getSupabaseService } from "@/lib/supabase-service";
 
 const VALID_ACTIONS = ["accepted", "rejected", "partial", "withdrawn"] as const;
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       body.banner_text_hash ??
       createHash("sha256").update(body.policy_version).digest("hex");
 
-    const { data, error } = await supabaseService
+    const { data, error } = await getSupabaseService()
       .from("cookie_consents")
       .insert({
         session_id: body.session_id,
