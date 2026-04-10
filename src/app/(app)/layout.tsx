@@ -36,7 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const t = useTranslations();
 
-  if (pathname === "/onboarding") {
+  if (pathname.startsWith("/onboarding")) {
     return <>{children}</>;
   }
 

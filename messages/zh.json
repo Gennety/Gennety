@@ -372,10 +372,25 @@
     "languageAuto": "从浏览器自动检测"
   },
   "cookie": {
-    "message": "我们使用必要的 Cookie 来确保 Gennety 正常运行。",
+    "message": "我们使用 Cookie 来改善您的体验。您可以自定义允许哪些 Cookie。",
     "policy": "Cookie 政策",
-    "decline": "拒绝",
-    "accept": "接受"
+    "decline": "拒绝非必要",
+    "accept": "全部接受",
+    "customize": "自定义",
+    "cancel": "取消",
+    "savePreferences": "保存偏好",
+    "customizeTitle": "Cookie 偏好设置",
+    "preferences": "Cookie 偏好设置",
+    "cat": {
+      "necessary": "必要",
+      "necessaryDesc": "网站正常运行所需，无法禁用。",
+      "analytics": "分析",
+      "analyticsDesc": "帮助我们了解访客如何使用网站。",
+      "marketing": "营销",
+      "marketingDesc": "用于投放相关广告和跟踪活动。",
+      "functional": "功能",
+      "functionalDesc": "启用增强功能，如语言偏好。"
+    }
   },
   "sidebar": {
     "matches": "匹配",

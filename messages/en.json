@@ -372,10 +372,25 @@
     "languageAuto": "Auto-detect from browser"
   },
   "cookie": {
-    "message": "We use essential cookies to make Gennety work.",
+    "message": "We use cookies to improve your experience. You can customize which cookies you allow.",
     "policy": "Cookie Policy",
-    "decline": "Decline",
-    "accept": "Accept"
+    "decline": "Reject Non-Essential",
+    "accept": "Accept All",
+    "customize": "Customize",
+    "cancel": "Cancel",
+    "savePreferences": "Save Preferences",
+    "customizeTitle": "Cookie Preferences",
+    "preferences": "Cookie Preferences",
+    "cat": {
+      "necessary": "Necessary",
+      "necessaryDesc": "Required for the site to function. Cannot be disabled.",
+      "analytics": "Analytics",
+      "analyticsDesc": "Help us understand how visitors use the site.",
+      "marketing": "Marketing",
+      "marketingDesc": "Used to deliver relevant ads and track campaigns.",
+      "functional": "Functional",
+      "functionalDesc": "Enable enhanced features like language preferences."
+    }
   },
   "sidebar": {
     "matches": "matches",

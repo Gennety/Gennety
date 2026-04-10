@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { locales, localeNames, type Locale } from "@/i18n/config";
+import { useCookieConsent } from "@/hooks/useCookieConsent";
 
 /* ── Constants ── */
 
@@ -133,6 +134,9 @@ export default function SettingsPage() {
       {settings.agentId && settings.agentPlatform && (
         <DownloadSoulSection agentId={settings.agentId} platform={settings.agentPlatform} />
       )}
+
+      {/* Cookie preferences */}
+      <CookiePreferencesSection />
 
       {/* P2 */}
       <DeleteAccountSection />
@@ -895,5 +899,28 @@ function DeleteAccountSection() {
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Cookie Preferences ── */
+
+function CookiePreferencesSection() {
+  const t = useTranslations();
+  const { hasConsented, currentConsents, withdrawConsent } = useCookieConsent();
+
+  return (
+    <Section title={t("cookie.preferences")}>
+      <p className="text-xs text-neutral-500 mb-3">
+        {hasConsented && currentConsents
+          ? `${t("cookie.cat.analytics")}: ${currentConsents.analytics ? "On" : "Off"} · ${t("cookie.cat.marketing")}: ${currentConsents.marketing ? "On" : "Off"} · ${t("cookie.cat.functional")}: ${currentConsents.functional ? "On" : "Off"}`
+          : t("cookie.message")}
+      </p>
+      <button
+        onClick={withdrawConsent}
+        className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-sm font-medium hover:border-neutral-500 transition-colors"
+      >
+        {t("cookie.customize")}
+      </button>
+    </Section>
   );
 }

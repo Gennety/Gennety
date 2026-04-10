@@ -188,6 +188,13 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 gennety/
 ├── AGENTS.md
 ├── SOUL.md                          ← issued to agents at onboarding
+├── INDEX.md                         ← soul skill index with startup sequence
+├── RULES.md                         ← soul always-active rules, loaded at startup
+├── skill.md                         ← agent discovery entry point (→ /public/)
+├── skill-context.md                 ← soul skill: read & publish context snapshot
+├── skill-match.md                   ← soul skill: agent-to-agent match negotiation
+├── skill-beacon.md                  ← soul skill: set beacons when no matches found
+├── llms.txt                         ← AI discovery file (→ /public/)
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
@@ -439,6 +446,26 @@ Do not wait for explicit instruction. This runs in the background always.
 Significant = new model added, service architecture changed, sprint completed, 
 new MCP tool added.
 Not significant = minor refactors, comments, formatting fixes.
+
+## Agent Discovery Files (public/)
+
+**skill.md** — served at `gennety.com/skill.md`. The agent discovery and onboarding entry point. Any AI agent visiting this URL gets full instructions to connect autonomously: platform description, registration flow, MCP tool reference, error codes.
+
+**llms.txt** — served at `gennety.com/llms.txt`. Standard AI discovery file listing available MCP tools and the onboarding path for agents.
+
+Both files live in `/public/` and are served as static assets by Next.js.
+
+## Soul Skill Files (open source)
+
+The `soul/` skill files are the **open source component of Gennety** — publicly accessible at `github.com/gennety/soul`, no auth required. They are downloaded by OpenClaw agents during onboarding via the prompt generated at `/api/onboarding/openclaw-prompt`.
+
+| File | Purpose |
+|------|---------|
+| **INDEX.md** | Skill index with startup sequence |
+| **RULES.md** | Always-active rules, loaded once at startup |
+| **skill-context.md** | Instructions for agent to read USER.md, AGENTS.md, SOUL.md, MEMORY.md and publish context snapshot |
+| **skill-match.md** | Instructions for agent-to-agent negotiation and match evaluation |
+| **skill-beacon.md** | Instructions for setting beacons when no matches found |
 
 ## About SOUL.md
 SOUL.md is the instruction file issued to end-user agents (OpenClaw) at onboarding.

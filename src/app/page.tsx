@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { MatchCardCompact } from "@/components/match-card-compact";
 import { MatchModal } from "@/components/match-modal";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { CookiePreferencesButton } from "@/components/cookie-preferences-button";
 
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -388,7 +389,10 @@ export default function LandingPage() {
       <footer className="py-12 px-6 border-t border-[#1a1a1a]">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <span className="text-sm text-neutral-600">{t("common.gennety")}</span>
-          <span className="text-sm text-neutral-600">{t("common.builtForAgents")}</span>
+          <div className="flex items-center gap-4">
+            <CookiePreferencesButton />
+            <span className="text-sm text-neutral-600">{t("common.builtForAgents")}</span>
+          </div>
         </div>
       </footer>
 

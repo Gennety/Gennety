@@ -7,43 +7,6 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { useTranslations } from "next-intl";
 
-function collectVisitorInfo() {
-  const nav = navigator as Navigator & {
-    deviceMemory?: number;
-    connection?: { effectiveType?: string };
-  };
-
-  return {
-    language: nav.language,
-    languages: [...nav.languages],
-    userAgent: nav.userAgent,
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    screenWidth: screen.width,
-    screenHeight: screen.height,
-    viewportWidth: window.innerWidth,
-    viewportHeight: window.innerHeight,
-    referrer: document.referrer,
-    pageUrl: window.location.href,
-    platform: nav.platform ?? "",
-    colorDepth: screen.colorDepth,
-    cookieEnabled: nav.cookieEnabled,
-    online: nav.onLine,
-    touchPoints: nav.maxTouchPoints ?? 0,
-    deviceMemory: nav.deviceMemory,
-    hardwareConcurrency: nav.hardwareConcurrency,
-    connectionType: nav.connection?.effectiveType,
-  };
-}
-
-function sendTrackEvent(event: string, extra?: Record<string, unknown>) {
-  const info = collectVisitorInfo();
-  fetch("/api/track", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ event, ...info, ...extra }),
-  }).catch(() => {});
-}
-
 export default function LoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#050505]" />}>
@@ -110,13 +73,6 @@ function LoginContent() {
       setLoading(false);
       return;
     }
-
-    // Track login/signup event
-    sendTrackEvent(isSignup ? "signup" : "login", {
-      loginMethod: "credentials",
-      email,
-      userName: name || undefined,
-    });
 
     window.location.href = callbackUrl;
   }

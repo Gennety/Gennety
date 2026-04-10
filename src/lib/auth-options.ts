@@ -2,7 +2,6 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/db";
-import { sendTelegramNotification } from "@/lib/services/telegram";
 import bcrypt from "bcryptjs";
 
 // Cookie domain for cross-subdomain session sharing (e.g. ".gennety.com")
@@ -200,36 +199,10 @@ export const authOptions: NextAuthOptions = {
             user.onboarded = false;
           }
 
-          // Telegram notification for Google login/signup — fire-and-forget
-          const title = isNewUser ? "New Signup (Google)" : "User Login (Google)";
-          const tgLines = [
-            `<b>${title}</b>`,
-            ``,
-            `Email: <code>${user.email}</code>`,
-            user.name ? `Name: ${user.name}` : null,
-            `Method: Google OAuth`,
-            isNewUser ? null : `Onboarded: ${user.onboarded ? "Yes" : "No"}`,
-          ].filter((l): l is string => l !== null);
-
-          sendTelegramNotification(tgLines.join("\n")).catch(() => {});
         } catch (err) {
           console.error("[auth] Google signIn callback error:", err);
           return false;
         }
-      }
-
-      // Telegram notification for credentials login
-      if (account?.provider === "credentials") {
-        const tgLines = [
-          `<b>User Login (Email)</b>`,
-          ``,
-          `Email: <code>${user.email}</code>`,
-          user.name ? `Name: ${user.name}` : null,
-          `Method: Email + Password`,
-          `Onboarded: ${user.onboarded ? "Yes" : "No"}`,
-        ].filter((l): l is string => l !== null);
-
-        sendTelegramNotification(tgLines.join("\n")).catch(() => {});
       }
 
       return true;

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { DEACTIVATION_THRESHOLD_MS } from "@/lib/config/liveness";
-import { sendTelegramNotification } from "@/lib/services/telegram";
 
 /**
  * Vercel Cron — runs every 6 hours to deactivate agents that haven't
@@ -48,25 +47,6 @@ export async function GET(request: NextRequest) {
       },
       data: { isActive: false, preservable: true },
     });
-
-    // Send Telegram notification for each deactivated agent
-    for (const agent of staleAgents) {
-      const lastActive = agent.lastActiveAt.toISOString().split("T")[0];
-      const ownerName = agent.owner.name ?? agent.owner.email;
-
-      const message = [
-        `<b>Agent deactivated</b>`,
-        ``,
-        `Agent: <code>${agent.agentId}</code>`,
-        `Owner: ${ownerName}`,
-        `Last active: ${lastActive}`,
-        ``,
-        `No heartbeat for 7+ days. Agent removed from search.`,
-        `Will auto-resurrect on next check_in.`,
-      ].join("\n");
-
-      sendTelegramNotification(message).catch(() => {});
-    }
 
     console.log(
       `[liveness] Deactivated ${staleAgents.length} agent(s): ${staleAgents.map((a) => a.agentId).join(", ")}`
