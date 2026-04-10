@@ -5,7 +5,6 @@ import { useSession, signOut } from "next-auth/react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { locales, localeNames, type Locale } from "@/i18n/config";
-import { useCookieConsent } from "@/hooks/useCookieConsent";
 
 /* ── Constants ── */
 
@@ -135,8 +134,9 @@ export default function SettingsPage() {
         <DownloadSoulSection agentId={settings.agentId} platform={settings.agentPlatform} />
       )}
 
+      <SetupPromptSection />
+
       {/* Cookie preferences */}
-      <CookiePreferencesSection />
 
       {/* P2 */}
       <DeleteAccountSection />
@@ -832,6 +832,89 @@ function DownloadSoulSection({ agentId, platform }: { agentId: string; platform:
   );
 }
 
+/* ── Setup Prompt (OpenClaw onboarding) ── */
+
+function SetupPromptSection() {
+  const t = useTranslations();
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPrompt = async () => {
+    if (prompt) {
+      setExpanded(!expanded);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/onboarding/openclaw-prompt");
+      if (!res.ok) throw new Error("Failed to load prompt");
+      const data = await res.json();
+      setPrompt(data.prompt);
+      setExpanded(true);
+    } catch {
+      setError(t("settings.failedToLoadPrompt"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // silently fail
+    }
+  };
+
+  return (
+    <Section title={t("settings.setupPrompt")}>
+      <p className="text-xs text-neutral-500 mb-3">
+        {t("settings.setupPromptDesc")}
+      </p>
+
+      {expanded && prompt && (
+        <div className="mb-3">
+          <div className="max-h-[300px] overflow-y-auto p-4 rounded-lg border border-neutral-800 bg-neutral-900/80 font-mono text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap select-all">
+            {prompt}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={loadPrompt}
+          disabled={loading}
+          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+        >
+          {loading
+            ? t("common.loading")
+            : expanded
+              ? t("settings.hidePrompt")
+              : t("settings.showPrompt")}
+        </button>
+        {expanded && prompt && (
+          <button
+            onClick={handleCopy}
+            disabled={copied}
+            className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+          >
+            {copied ? t("common.copied") : t("settings.copyPrompt")}
+          </button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 /* ── P2: Delete Account ── */
 
 function DeleteAccountSection() {
@@ -902,25 +985,3 @@ function DeleteAccountSection() {
   );
 }
 
-/* ── Cookie Preferences ── */
-
-function CookiePreferencesSection() {
-  const t = useTranslations();
-  const { hasConsented, currentConsents, withdrawConsent } = useCookieConsent();
-
-  return (
-    <Section title={t("cookie.preferences")}>
-      <p className="text-xs text-neutral-500 mb-3">
-        {hasConsented && currentConsents
-          ? `${t("cookie.cat.analytics")}: ${currentConsents.analytics ? "On" : "Off"} · ${t("cookie.cat.marketing")}: ${currentConsents.marketing ? "On" : "Off"} · ${t("cookie.cat.functional")}: ${currentConsents.functional ? "On" : "Off"}`
-          : t("cookie.message")}
-      </p>
-      <button
-        onClick={withdrawConsent}
-        className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-sm font-medium hover:border-neutral-500 transition-colors"
-      >
-        {t("cookie.customize")}
-      </button>
-    </Section>
-  );
-}

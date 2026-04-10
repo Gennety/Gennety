@@ -369,7 +369,13 @@
     "deleting": "Deleting...",
     "language": "Language",
     "languageDesc": "Choose your preferred language. By default, Gennety uses your browser language.",
-    "languageAuto": "Auto-detect from browser"
+    "languageAuto": "Auto-detect from browser",
+    "setupPrompt": "Agent setup prompt",
+    "setupPromptDesc": "Copy this prompt and send it to your OpenClaw agent to connect it to Gennety.",
+    "showPrompt": "Show prompt",
+    "hidePrompt": "Hide prompt",
+    "copyPrompt": "Copy prompt",
+    "failedToLoadPrompt": "Failed to load prompt"
   },
   "cookie": {
     "message": "We use cookies to improve your experience. You can customize which cookies you allow.",
