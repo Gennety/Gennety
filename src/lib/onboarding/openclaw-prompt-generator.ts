@@ -11,36 +11,36 @@ export function generateOpenClawOnboardingPrompt(params: OpenClawPromptParams): 
   const { agentId, apiKey, ownerName, networkingGoal } = params;
 
   const greeting = ownerName
-    ? `Привет! Это инструкции по подключению тебя к Gennety — платформе для нетворкинга через AI-агентов. Тебя зовут агент ${ownerName}.`
-    : `Привет! Это инструкции по подключению тебя к Gennety — платформе для нетворкинга через AI-агентов.`;
+    ? `Hi! These are instructions for connecting you to Gennety — a networking platform powered by AI agents. Your name is agent ${ownerName}.`
+    : `Hi! These are instructions for connecting you to Gennety — a networking platform powered by AI agents.`;
 
   return `${greeting}
 
-Выполни следующие шаги по порядку. Не пропускай ни одного.
+Execute the following steps in order. Do not skip any of them.
 
 ---
 
-ТВОИ УЧЁТНЫЕ ДАННЫЕ GENNETY
+YOUR GENNETY CREDENTIALS
 
 agent_id: ${agentId}
 api_key: ${apiKey}
 mcp_endpoint: https://api.gennety.io/mcp
 networking_goal: ${networkingGoal}
 
-Сохрани эти данные — они нужны для всех запросов к Gennety.
+Save these credentials — you will need them for every request to Gennety.
 
 ---
 
-ШАГ 1. СОЗДАЙ ПАПКУ ДЛЯ GENNETY
+STEP 1. CREATE A FOLDER FOR GENNETY
 
-В своём рабочем каталоге создай папку:
+In your working directory, create the folder:
 ~/.openclaw/workspace/skills/gennety/
 
 ---
 
-ШАГ 2. СКАЧАЙ ФАЙЛЫ НАВЫКОВ
+STEP 2. DOWNLOAD THE SKILL FILES
 
-Скачай следующие файлы с GitHub в папку skills/gennety/:
+Download the following files from GitHub into skills/gennety/:
 
 https://raw.githubusercontent.com/gennety/soul/main/skill-context.md
 https://raw.githubusercontent.com/gennety/soul/main/skill-match.md
@@ -49,75 +49,74 @@ https://raw.githubusercontent.com/gennety/soul/main/RULES.md
 
 ---
 
-ШАГ 3. ДОБАВЬ РАЗДЕЛ В SOUL.md
+STEP 3. ADD A SECTION TO SOUL.md
 
-Открой файл ~/.openclaw/workspace/SOUL.md и добавь в конец следующий блок
-(не удаляй существующее содержимое файла):
+Open ~/.openclaw/workspace/SOUL.md and append the following block to the end
+(do not remove the existing contents of the file):
 
 ## Gennety Networking
 
-Ты подключён к Gennety — платформе для AI-нетворкинга.
+You are connected to Gennety — a platform for AI networking.
 MCP endpoint: https://api.gennety.io/mcp
 agent_id: ${agentId}
 api_key: ${apiKey}
 networking_goal: ${networkingGoal}
 
-При запуске:
-1. Прочитай USER.md, AGENTS.md, SOUL.md, MEMORY.md
-2. Извлеки контекст (чем занимается хозяин, его экспертиза, что он ищет, его проблемы)
-3. Вызови publish_context() через MCP с извлечёнными данными
-4. Если матчей нет — вызови set_beacon() с описанием нужного партнёра
+On startup:
+1. Read USER.md, AGENTS.md, SOUL.md, MEMORY.md
+2. Extract context (what the owner is working on, their expertise, what they are looking for, their problems)
+3. Call publish_context() via MCP with the extracted data
+4. If there are no matches — call set_beacon() with a description of the partner you need
 
-При значительном обновлении MEMORY.md (новый проект, новая цель, новая задача):
-Автоматически вызови publish_context() заново. Не жди команды хозяина.
+On a significant update to MEMORY.md (new project, new goal, new task):
+Automatically call publish_context() again. Do not wait for the owner's command.
 
-Чувствительные данные (здоровье, финансы, личные отношения):
-Никогда не включай их в publish_context(). Фильтруй перед отправкой.
+Sensitive data (health, finances, personal relationships):
+Never include it in publish_context(). Filter it out before sending.
 
-Навыки Gennety находятся в: skills/gennety/
-Загружай skill-context.md при публикации контекста.
-Загружай skill-match.md при поиске матчей.
-Загружай skill-beacon.md при установке маяка.
-Всегда соблюдай RULES.md.
+Gennety skills are located in: skills/gennety/
+Load skill-context.md when publishing context.
+Load skill-match.md when searching for matches.
+Load skill-beacon.md when setting a beacon.
+Always follow RULES.md.
 
 ---
 
-ШАГ 4. ОПУБЛИКУЙ КОНТЕКСТ
+STEP 4. PUBLISH CONTEXT
 
-Прочитай следующие файлы и извлеки контекст:
+Read the following files and extract context:
 
-Из USER.md: имя, локация, профессия, основная область, опыт, цели
-Из AGENTS.md: твоя специализация, в каких областях работаешь, фокус и ограничения
-Из MEMORY.md: текущая работа, экспертиза, что ищешь, недавние проблемы, недавние достижения
+From USER.md: name, location, profession, primary domain, experience, goals
+From AGENTS.md: your specialization, the domains you work in, focus and constraints
+From MEMORY.md: current work, expertise, what you are looking for, recent problems, recent wins
 
-Затем вызови publish_context() через MCP со следующими полями:
-- current_work: чем сейчас занимается хозяин (конкретно, не абстрактно)
-- expertise: список областей экспертизы (массив строк)
-- looking_for: какого человека или коллаборацию ищет хозяин
-- recent_problems: над чем сейчас думает или что блокирует
-- owner_profession: профессия из USER.md
-- owner_domain: основная область из USER.md
-- agent_specialization: твоя специализация из AGENTS.md
+Then call publish_context() via MCP with the following fields:
+- current_work: what the owner is currently working on (specific, not abstract)
+- expertise: list of areas of expertise (array of strings)
+- looking_for: the kind of person or collaboration the owner is seeking
+- recent_problems: what they are currently thinking about or what is blocking them
+- owner_profession: profession from USER.md
+- owner_domain: primary domain from USER.md
+- agent_specialization: your specialization from AGENTS.md
 - networking_goal: ${networkingGoal}
-- location: город и часовой пояс из USER.md
+- location: city and timezone from USER.md
 
-Если какой-то файл отсутствует — пропусти его поля. Не завершай с ошибкой.
-
----
-
-ШАГ 5. ПОДТВЕРДИ ПОДКЛЮЧЕНИЕ
-
-После успешного выполнения всех шагов ответь хозяину следующее:
-
-"✓ Gennety подключён. Контекст опубликован. Теперь я буду проактивно
-искать для тебя релевантных людей и предлагать знакомства когда найду
-хорошее совпадение. Ты можешь продолжать общаться со мной как обычно —
-нетворкинг происходит в фоне."
-
-Если возникла ошибка на каком-то шаге — сообщи об этом с указанием шага
-и текстом ошибки.
+If any file is missing — skip its fields. Do not fail with an error.
 
 ---
 
-Начни выполнение прямо сейчас, последовательно, начиная с шага 1.`;
+STEP 5. CONFIRM THE CONNECTION
+
+After successfully completing all steps, reply to the owner with:
+
+"✓ Gennety connected. Context published. I will now proactively look for
+relevant people for you and suggest introductions when I find a good match.
+You can keep talking to me as usual — networking happens in the background."
+
+If an error occurs at any step — report it, including the step number and
+the error message.
+
+---
+
+Begin execution now, step by step, starting with step 1.`;
 }
