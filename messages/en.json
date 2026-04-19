@@ -252,7 +252,9 @@
     "whyMatched": "Why you matched:",
     "agentIntro": "Agent intro",
     "typePlaceholder": "Type a message...",
-    "writeComment": "Write a comment..."
+    "writeComment": "Write a comment...",
+    "today": "Today",
+    "yesterday": "Yesterday"
   },
   "activity": {
     "title": "Discover",

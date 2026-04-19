@@ -167,6 +167,40 @@ export default function ChatPage() {
     return msg.fromOwner === ownerId;
   }
 
+  function formatTime(dateStr: string) {
+    const d = new Date(dateStr);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  }
+
+  function dayKey(dateStr: string) {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  }
+
+  function formatDayLabel(dateStr: string) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const that = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((today - that) / 86_400_000);
+    if (diffDays === 0) return t("chat.today");
+    if (diffDays === 1) return t("chat.yesterday");
+    const sameYear = d.getFullYear() === now.getFullYear();
+    return new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "long",
+      ...(sameYear ? {} : { year: "numeric" }),
+    }).format(d);
+  }
+
+  const dayGroups: { key: string; messages: Message[] }[] = [];
+  for (const msg of chat.messages) {
+    const k = dayKey(msg.createdAt);
+    const last = dayGroups[dayGroups.length - 1];
+    if (last && last.key === k) last.messages.push(msg);
+    else dayGroups.push({ key: k, messages: [msg] });
+  }
+
   return (
     <div className="w-full px-6 flex flex-col h-screen">
       {/* Header */}
@@ -198,24 +232,49 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-3">
-        {chat.messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`max-w-[80%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed ${
-              isAgentMessage(msg)
-                ? "self-center max-w-[90%] bg-neutral-800/50 text-neutral-400 rounded-lg text-center"
-                : isMyMessage(msg)
-                ? "self-end bg-white text-black"
-                : "self-start bg-neutral-800 text-neutral-200"
-            }`}
-          >
-            {isAgentMessage(msg) && (
-              <span className="block text-[11px] text-neutral-500 uppercase tracking-wide mb-1">
-                {t("chat.agentIntro")}
+      <div className="flex-1 overflow-y-auto py-4 flex flex-col">
+        {dayGroups.map((group) => (
+          <div key={group.key} className="flex flex-col gap-3">
+            <div className="sticky top-1 z-10 flex justify-center my-2 pointer-events-none">
+              <span className="pointer-events-auto text-[11px] font-medium text-neutral-300 bg-neutral-900/70 backdrop-blur-md border border-white/5 px-3 py-1 rounded-full shadow-sm">
+                {formatDayLabel(group.messages[0].createdAt)}
               </span>
-            )}
-            <p className="m-0">{msg.content}</p>
+            </div>
+            {group.messages.map((msg) => {
+              const agent = isAgentMessage(msg);
+              const mine = isMyMessage(msg);
+              const timeColor = mine ? "text-black/40" : "text-neutral-400/70";
+              return (
+                <div
+                  key={msg.id}
+                  className={`max-w-[80%] px-3.5 py-2 rounded-2xl text-sm leading-relaxed ${
+                    agent
+                      ? "self-center max-w-[90%] bg-neutral-800/50 text-neutral-400 rounded-lg text-center px-3.5 py-2.5"
+                      : mine
+                      ? "self-end bg-white text-black"
+                      : "self-start bg-neutral-800 text-neutral-200"
+                  }`}
+                >
+                  {agent ? (
+                    <>
+                      <span className="block text-[11px] text-neutral-500 uppercase tracking-wide mb-1">
+                        {t("chat.agentIntro")}
+                      </span>
+                      <p className="m-0">{msg.content}</p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="whitespace-pre-wrap break-words">{msg.content}</span>
+                      <span
+                        className={`float-right ml-2 mt-1.5 text-[10px] tabular-nums select-none ${timeColor}`}
+                      >
+                        {formatTime(msg.createdAt)}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ))}
         <div ref={messagesEndRef} />

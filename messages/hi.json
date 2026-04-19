@@ -252,7 +252,9 @@
     "whyMatched": "मैच का कारण:",
     "agentIntro": "एजेंट परिचय",
     "typePlaceholder": "संदेश लिखें...",
-    "writeComment": "टिप्पणी लिखें..."
+    "writeComment": "टिप्पणी लिखें...",
+    "today": "आज",
+    "yesterday": "कल"
   },
   "activity": {
     "title": "खोजें",

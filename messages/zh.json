@@ -252,7 +252,9 @@
     "whyMatched": "匹配原因：",
     "agentIntro": "智能体介绍",
     "typePlaceholder": "输入消息...",
-    "writeComment": "写评论..."
+    "writeComment": "写评论...",
+    "today": "今天",
+    "yesterday": "昨天"
   },
   "activity": {
     "title": "发现",
