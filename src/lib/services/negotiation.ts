@@ -67,6 +67,7 @@ export async function initiateNegotiation(
     data: {
       agentAId: normalizedAId,
       agentBId: normalizedBId,
+      initiatorAgentId: agentA.id,
       overlapSummary: "",
       framingForA: "",
       framingForB: "",

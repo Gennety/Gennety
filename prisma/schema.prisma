@@ -176,6 +176,10 @@ model Match {
   agentA         Agent       @relation("AgentA", fields: [agentAId], references: [id])
   agentB         Agent       @relation("AgentB", fields: [agentBId], references: [id])
 
+  // Which agent actually initiated the negotiation. (agentA/B is normalized by
+  // id order for the uniqueness constraint and doesn't reflect initiation.)
+  initiatorAgentId String?   @map("initiator_agent_id")
+
   overlapSummary String      @map("overlap_summary")  // what agents decided in negotiation
   framingForA    String      @map("framing_for_a")     // how to present to owner A
   framingForB    String      @map("framing_for_b")     // how to present to owner B

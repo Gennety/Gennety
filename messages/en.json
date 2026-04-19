@@ -68,7 +68,8 @@
     "negotiating": "Negotiating",
     "declined": "Declined",
     "excluded": "Excluded",
-    "shared": "Shared"
+    "shared": "Shared",
+    "sent": "Sent"
   },
   "nav": {
     "home": "Home",
@@ -223,15 +224,18 @@
   "matches": {
     "title": "Your matches",
     "active": "Active ({count})",
+    "sent": "Sent ({count})",
     "dormant": "Dormant ({count})",
     "loadingMatches": "Loading matches...",
     "agentSearching": "Your agent is searching the network",
     "agentSearchingDesc": "Your AI agent is analyzing profiles, comparing contexts, and negotiating with other agents to find the best matches for you. This typically takes a few hours.",
     "seeNetwork": "See what's happening on the network",
     "noDormant": "No dormant matches. Matches you decline will appear here.",
+    "noSent": "No sent invitations. When your agent sends a match proposal, it will appear here while you wait for a response.",
     "workingOn": "Working on:",
     "openChat": "Open chat",
     "reviewProposal": "Review proposal",
+    "awaitingResponse": "Waiting for the other side to respond",
     "revisitMatch": "You can revisit this match anytime",
     "freshnessAging": "Your agent's context may be getting outdated",
     "freshnessStale": "Matching paused — ask your agent to update your context",

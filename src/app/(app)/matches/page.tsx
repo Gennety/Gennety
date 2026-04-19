@@ -11,6 +11,8 @@ interface MatchItem {
   overlapSummary: string;
   framingForMe: string;
   confirmedByMe: boolean;
+  confirmedByOther: boolean;
+  initiatedByMe: boolean;
   otherPerson: {
     name: string | null;
     currentWork: string | null;
@@ -26,7 +28,7 @@ export default function MatchesPage() {
   const { status } = useSession();
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [freshnessState, setFreshnessState] = useState<string | null>(null);
-  const [tab, setTab] = useState<"active" | "dormant">("active");
+  const [tab, setTab] = useState<"active" | "sent" | "dormant">("active");
   const [loading, setLoading] = useState(true);
   const t = useTranslations();
 
@@ -55,11 +57,24 @@ export default function MatchesPage() {
     );
   }
 
+  // "Sent" — proposals my agent initiated that the other side hasn't accepted
+  // yet (waiting on the recipient). Once they accept, it flips to "Active".
+  const sentMatches = matches.filter(
+    (m) => m.status === "PROPOSED" && m.initiatedByMe && !m.confirmedByOther
+  );
+  // "Active" — confirmed matches, plus incoming proposals I need to review.
   const activeMatches = matches.filter(
-    (m) => m.status === "MATCHED" || m.status === "PROPOSED"
+    (m) =>
+      m.status === "MATCHED" ||
+      (m.status === "PROPOSED" && !(m.initiatedByMe && !m.confirmedByOther))
   );
   const dormantMatches = matches.filter((m) => m.status === "DORMANT");
-  const displayed = tab === "active" ? activeMatches : dormantMatches;
+  const displayed =
+    tab === "active"
+      ? activeMatches
+      : tab === "sent"
+      ? sentMatches
+      : dormantMatches;
 
   return (
     <div className="px-6 py-10">
@@ -77,6 +92,16 @@ export default function MatchesPage() {
           }`}
         >
           {t("matches.active", { count: activeMatches.length })}
+        </button>
+        <button
+          onClick={() => setTab("sent")}
+          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            tab === "sent"
+              ? "text-white border-white"
+              : "text-neutral-500 border-transparent hover:text-neutral-300"
+          }`}
+        >
+          {t("matches.sent", { count: sentMatches.length })}
         </button>
         <button
           onClick={() => setTab("dormant")}
@@ -121,6 +146,10 @@ export default function MatchesPage() {
                 </Link>
               </div>
             </>
+          ) : tab === "sent" ? (
+            <p className="text-neutral-500 text-sm">
+              {t("matches.noSent")}
+            </p>
           ) : (
             <p className="text-neutral-500 text-sm">
               {t("matches.noDormant")}
@@ -138,7 +167,14 @@ export default function MatchesPage() {
             <span className="text-lg font-semibold text-white">
               {match.otherPerson.name ?? "Unknown"}
             </span>
-            <StatusBadge status={match.status} />
+            <StatusBadge
+              status={match.status}
+              sentWaiting={
+                match.status === "PROPOSED" &&
+                match.initiatedByMe &&
+                !match.confirmedByOther
+              }
+            />
           </div>
 
           <p className="text-sm leading-relaxed text-neutral-300 mb-3 p-3 bg-neutral-800/50 rounded-lg border-l-2 border-neutral-600">
@@ -166,7 +202,7 @@ export default function MatchesPage() {
               </div>
             )}
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
             {match.status === "MATCHED" && match.chatId && (
               <Link
                 href={`/chat/${match.matchId}`}
@@ -175,14 +211,23 @@ export default function MatchesPage() {
                 {t("matches.openChat")}
               </Link>
             )}
-            {match.status === "PROPOSED" && !match.confirmedByMe && (
-              <Link
-                href="/notify"
-                className="inline-block px-5 py-2.5 text-sm font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors"
-              >
-                {t("matches.reviewProposal")}
-              </Link>
-            )}
+            {match.status === "PROPOSED" &&
+              match.initiatedByMe &&
+              !match.confirmedByOther && (
+                <span className="text-xs text-neutral-400 italic">
+                  {t("matches.awaitingResponse")}
+                </span>
+              )}
+            {match.status === "PROPOSED" &&
+              !match.confirmedByMe &&
+              !(match.initiatedByMe && !match.confirmedByOther) && (
+                <Link
+                  href="/notify"
+                  className="inline-block px-5 py-2.5 text-sm font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors"
+                >
+                  {t("matches.reviewProposal")}
+                </Link>
+              )}
             {match.status === "DORMANT" && (
               <span className="text-xs text-neutral-500 italic">
                 {t("matches.revisitMatch")}
@@ -233,32 +278,45 @@ function FreshnessIndicator({ state }: { state: string | null }) {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  sentWaiting,
+}: {
+  status: string;
+  sentWaiting?: boolean;
+}) {
   const t = useTranslations("status");
 
-  const styles =
-    status === "MATCHED"
-      ? {
-          text: "text-emerald-400",
-          dot: "bg-emerald-400",
-          glow: "shadow-[0_0_8px_rgba(52,211,153,0.6)]",
-        }
-      : status === "PROPOSED"
-      ? {
-          text: "text-amber-400",
-          dot: "bg-amber-400",
-          glow: "shadow-[0_0_8px_rgba(251,191,36,0.5)]",
-        }
-      : {
-          text: "text-neutral-500",
-          dot: "bg-neutral-500",
-          glow: "",
-        };
+  const styles = sentWaiting
+    ? {
+        text: "text-sky-400",
+        dot: "bg-sky-400",
+        glow: "shadow-[0_0_8px_rgba(56,189,248,0.5)]",
+      }
+    : status === "MATCHED"
+    ? {
+        text: "text-emerald-400",
+        dot: "bg-emerald-400",
+        glow: "shadow-[0_0_8px_rgba(52,211,153,0.6)]",
+      }
+    : status === "PROPOSED"
+    ? {
+        text: "text-amber-400",
+        dot: "bg-amber-400",
+        glow: "shadow-[0_0_8px_rgba(251,191,36,0.5)]",
+      }
+    : {
+        text: "text-neutral-500",
+        dot: "bg-neutral-500",
+        glow: "",
+      };
+
+  const label = sentWaiting ? t("sent") : t(status.toLowerCase());
 
   return (
     <span className={`inline-flex items-center gap-2 text-[11px] font-medium tracking-wide ${styles.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${styles.dot} ${styles.glow}`} />
-      {t(status.toLowerCase())}
+      {label}
     </span>
   );
 }

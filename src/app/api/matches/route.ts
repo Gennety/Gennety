@@ -52,6 +52,8 @@ export async function GET() {
     const otherAgent = isAgentA ? m.agentB : m.agentA;
     const framingForMe = isAgentA ? m.framingForA : m.framingForB;
     const confirmedByMe = isAgentA ? m.confirmedByA : m.confirmedByB;
+    const confirmedByOther = isAgentA ? m.confirmedByB : m.confirmedByA;
+    const initiatedByMe = m.initiatorAgentId === owner.agent!.id;
 
     return {
       matchId: m.id,
@@ -59,6 +61,8 @@ export async function GET() {
       overlapSummary: m.overlapSummary,
       framingForMe,
       confirmedByMe,
+      confirmedByOther,
+      initiatedByMe,
       otherPerson: {
         name: otherAgent.owner.name,
         currentWork: otherAgent.context?.currentWork,

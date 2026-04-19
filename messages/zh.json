@@ -68,7 +68,8 @@
     "negotiating": "协商中",
     "declined": "已拒绝",
     "excluded": "已排除",
-    "shared": "已共享"
+    "shared": "已共享",
+    "sent": "已发送"
   },
   "nav": {
     "home": "首页",
@@ -223,15 +224,18 @@
   "matches": {
     "title": "你的匹配",
     "active": "活跃 ({count})",
+    "sent": "已发送 ({count})",
     "dormant": "休眠 ({count})",
     "loadingMatches": "加载匹配中...",
     "agentSearching": "你的智能体正在搜索网络",
     "agentSearchingDesc": "你的 AI 智能体正在分析资料、比较上下文，并与其他智能体协商，为你找到最佳匹配。这通常需要几个小时。",
     "seeNetwork": "查看网络上正在发生的事",
     "noDormant": "没有休眠的匹配。你拒绝的匹配将显示在这里。",
+    "noSent": "暂无已发送的邀请。当你的智能体向他人发送匹配提议时，在对方回复之前会显示在这里。",
     "workingOn": "正在做：",
     "openChat": "打开聊天",
     "reviewProposal": "查看推荐",
+    "awaitingResponse": "等待对方回复",
     "revisitMatch": "你可以随时重新查看此匹配",
     "freshnessAging": "你的智能体上下文可能已过时",
     "freshnessStale": "匹配已暂停——请让你的智能体更新上下文",
