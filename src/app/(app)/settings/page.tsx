@@ -837,30 +837,28 @@ function DownloadSoulSection({ agentId, platform }: { agentId: string; platform:
 function SetupPromptSection() {
   const t = useTranslations();
   const [prompt, setPrompt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadPrompt = async () => {
-    if (prompt) {
-      setExpanded(!expanded);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/onboarding/openclaw-prompt");
-      if (!res.ok) throw new Error("Failed to load prompt");
-      const data = await res.json();
-      setPrompt(data.prompt);
-      setExpanded(true);
-    } catch {
-      setError(t("settings.failedToLoadPrompt"));
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/onboarding/openclaw-prompt");
+        if (!res.ok) throw new Error("Failed to load prompt");
+        const data = await res.json();
+        if (!cancelled) setPrompt(data.prompt);
+      } catch {
+        if (!cancelled) setError(t("settings.failedToLoadPrompt"));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const handleCopy = async () => {
     if (!prompt) return;
@@ -879,37 +877,22 @@ function SetupPromptSection() {
         {t("settings.setupPromptDesc")}
       </p>
 
-      {expanded && prompt && (
-        <div className="mb-3">
-          <div className="max-h-[300px] overflow-y-auto p-4 rounded-lg border border-neutral-800 bg-neutral-900/80 font-mono text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap select-all">
-            {prompt}
-          </div>
+      <div className="mb-3">
+        <div className="max-h-[300px] overflow-y-auto p-4 rounded-lg border border-neutral-800 bg-neutral-900/80 font-mono text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap select-all">
+          {loading ? t("common.loading") : prompt}
         </div>
-      )}
+      </div>
 
       {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
       <div className="flex items-center gap-2">
         <button
-          onClick={loadPrompt}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
+          onClick={handleCopy}
+          disabled={!prompt || copied}
+          className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
         >
-          {loading
-            ? t("common.loading")
-            : expanded
-              ? t("settings.hidePrompt")
-              : t("settings.showPrompt")}
+          {copied ? t("common.copied") : t("settings.copyPrompt")}
         </button>
-        {expanded && prompt && (
-          <button
-            onClick={handleCopy}
-            disabled={copied}
-            className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
-          >
-            {copied ? t("common.copied") : t("settings.copyPrompt")}
-          </button>
-        )}
       </div>
     </Section>
   );
