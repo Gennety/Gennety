@@ -41,6 +41,22 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdsRef = useRef<Set<string>>(new Set());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const MAX_TEXTAREA_HEIGHT = 132; // ~6 lines at 20px line-height + padding
+
+  const autosize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
+  }, []);
+
+  useEffect(() => {
+    autosize();
+  }, [newMessage, autosize]);
 
   // Fetch chat data
   const fetchChat = useCallback(async () => {
@@ -109,6 +125,18 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat?.messages]);
+
+  // Auto-grow textarea up to ~6 visible lines, then scroll internally
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20;
+    const paddingY = 24; // py-3 (12px top + 12px bottom)
+    const maxHeight = lineHeight * 6 + paddingY;
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [newMessage]);
 
   async function handleSend() {
     if (!newMessage.trim() || !ownerId || sending) return;
@@ -281,14 +309,21 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="flex gap-2 py-4 border-t border-neutral-800">
-        <input
-          type="text"
+      <div className="flex gap-2 py-4 border-t border-neutral-800 items-end">
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
           placeholder={t("chat.typePlaceholder")}
-          className="flex-1 px-4 py-3 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-600"
+          className="flex-1 px-4 py-3 text-sm bg-neutral-900 border border-neutral-800 rounded-lg text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-600 resize-none leading-5 break-words"
+          style={{ maxHeight: MAX_TEXTAREA_HEIGHT, overflowY: "hidden" }}
         />
         <button
           onClick={handleSend}
