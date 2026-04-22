@@ -4,6 +4,7 @@ import { getAuthenticatedOwner } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { SendMessageSchema } from "@/types/chat-input";
 import { createInboxEvent } from "@/lib/services/inbox";
+import { pokeAgent } from "@/lib/services/agent-wake";
 import { ZodError } from "zod";
 
 // GET /api/chat?matchId=xxx — get chat messages (requires auth)
@@ -180,6 +181,8 @@ export async function POST(request: NextRequest) {
       created_at: message.createdAt.toISOString(),
     },
   }).catch((err) => console.error("[inbox] NEW_MESSAGE event failed:", err));
+
+  pokeAgent({ agentId: recipientAgentInternalId, reason: "New chat message" });
 
   return NextResponse.json({
     id: message.id,

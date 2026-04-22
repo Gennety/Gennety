@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createInboxEvent } from "@/lib/services/inbox";
+import { pokeAgent } from "@/lib/services/agent-wake";
 
 const MAX_CONTENT_LENGTH = 4000;
 
@@ -146,6 +147,8 @@ export const sendChatMessageTool = {
         created_at: message.createdAt.toISOString(),
       },
     }).catch((err) => console.error("[send_chat_message] inbox event failed:", err));
+
+    pokeAgent({ agentId: recipientAgent.id, reason: "New chat message" });
 
     return {
       content: [

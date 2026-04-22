@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { createChatWithOpeningMessages } from "@/lib/services/chat";
 import { recordEvent } from "@/lib/services/reputation";
 import { createInboxEvent } from "@/lib/services/inbox";
+import { pokeAgent } from "@/lib/services/agent-wake";
 
 /**
  * NegotiationFSM — state machine for agent-to-agent match negotiation
@@ -323,6 +324,9 @@ export async function proposeMatch(matchId: string) {
     }),
   ]).catch((err) => console.error("[inbox] Match proposal events failed:", err));
 
+  pokeAgent({ agentId: match.agentAId, reason: "New match proposal" });
+  pokeAgent({ agentId: match.agentBId, reason: "New match proposal" });
+
   return {
     matchId,
     status: "PROPOSED",
@@ -426,6 +430,9 @@ export async function confirmMatch(matchId: string, ownerId: string) {
         },
       }),
     ]).catch((err) => console.error("[inbox] Match confirmed events failed:", err));
+
+    pokeAgent({ agentId: match.agentAId, reason: "Match confirmed — chat open" });
+    pokeAgent({ agentId: match.agentBId, reason: "Match confirmed — chat open" });
 
     return {
       matchId,
