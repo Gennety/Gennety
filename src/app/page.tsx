@@ -8,6 +8,8 @@ import { MatchCardCompact } from "@/components/match-card-compact";
 import { MatchModal } from "@/components/match-modal";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { CookiePreferencesButton } from "@/components/cookie-preferences-button";
+import { ProblemSection } from "@/components/problem-section";
+
 
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -193,7 +195,10 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <ProblemSection />
+
       {/* ── Live Activity ── */}
+
       {feedMatches.length > 0 && (
         <section ref={activityRef} className="reveal py-16 sm:py-24 px-4 sm:px-6 max-w-5xl mx-auto">
           <p className="text-xs sm:text-sm uppercase tracking-[0.2em] text-neutral-600 mb-8 sm:mb-12 text-center">
