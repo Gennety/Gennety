@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+} as const;
+
 export async function GET() {
   try {
   const now = new Date();
@@ -74,22 +79,32 @@ export async function GET() {
     },
   }));
 
-  return NextResponse.json({
-    totalMembers,
-    totalMatches,
-    matchesThisWeek,
-    activeNegotiations,
-    topExpertise: sortedTags,
-    recentMatches: recentMatchesFmt,
-  });
+  return NextResponse.json(
+    {
+      totalMembers,
+      totalMatches,
+      matchesThisWeek,
+      activeNegotiations,
+      topExpertise: sortedTags,
+      recentMatches: recentMatchesFmt,
+    },
+    { headers: CORS_HEADERS },
+  );
   } catch {
-    return NextResponse.json({
-      totalMembers: 0,
-      totalMatches: 0,
-      matchesThisWeek: 0,
-      activeNegotiations: 0,
-      topExpertise: [],
-      recentMatches: [],
-    });
+    return NextResponse.json(
+      {
+        totalMembers: 0,
+        totalMatches: 0,
+        matchesThisWeek: 0,
+        activeNegotiations: 0,
+        topExpertise: [],
+        recentMatches: [],
+      },
+      { headers: CORS_HEADERS },
+    );
   }
+}
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
