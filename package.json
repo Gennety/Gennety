@@ -13,6 +13,9 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:seed-feed": "tsx scripts/seed-feed.ts",
     "db:seed-test": "tsx scripts/seed-test-env.ts",
+    "demo:personas": "tsx scripts/generate-demo-personas.ts",
+    "demo:seed": "tsx scripts/seed-demo-network.ts",
+    "demo:history": "tsx scripts/seed-demo-history.ts",
     "db:studio": "npx prisma studio"
   },
   "dependencies": {
@@ -23,6 +26,7 @@
     "@supabase/supabase-js": "^2.99.3",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
+    "framer-motion": "^12.38.0",
     "next": "^16.2.1",
     "next-auth": "^4.24.13",
     "next-intl": "^4.8.4",
