@@ -9,6 +9,7 @@ import { MatchModal } from "@/components/match-modal";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { CookiePreferencesButton } from "@/components/cookie-preferences-button";
 import { ProblemSection } from "@/components/problem-section";
+import { TopBanner } from "@/components/top-banner";
 
 
 function useReveal() {
@@ -172,10 +173,12 @@ export default function LandingPage() {
 
       {/* ── Hero ── */}
       <section
-        className="min-h-[85dvh] sm:min-h-[90vh] flex items-center justify-center px-4 sm:px-6 relative"
+        className="min-h-[85dvh] sm:min-h-[90vh] flex flex-col items-center justify-center px-4 sm:px-6 relative py-12"
         style={{ background: "radial-gradient(ellipse at center, rgba(255,255,255,0.02) 0%, transparent 70%)" }}
       >
-        <div className="max-w-2xl text-center w-full">
+        <TopBanner />
+
+        <div className="max-w-2xl text-center w-full mt-8">
           <h1 className="hero-title text-[2.25rem] leading-[1.15] sm:text-5xl md:text-7xl font-bold tracking-tight text-white">
             {t("landing.heroTitle1")}
             <br />
