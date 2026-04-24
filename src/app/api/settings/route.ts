@@ -42,6 +42,8 @@ export async function GET() {
       notifyFreshness: owner.notifyFreshness,
       agentId: owner.agent?.agentId ?? null,
       agentPlatform: owner.agentPlatform,
+      webhookUrl: owner.agent?.webhookUrl ?? "",
+      webhookTokenSet: !!owner.agent?.webhookToken,
     });
   } catch (error) {
     return safeErrorResponse(error, "Failed to load settings");
@@ -122,27 +124,41 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // Agent active toggle
-    if (validated.agentActive !== undefined) {
+    // Agent-scoped updates (active toggle, webhook)
+    const wantsAgentUpdate =
+      validated.agentActive !== undefined ||
+      validated.webhookUrl !== undefined ||
+      validated.webhookToken !== undefined;
+
+    if (wantsAgentUpdate) {
       const agent = await prisma.agent.findUnique({
         where: { ownerId: auth.ownerId },
       });
 
       if (agent) {
-        await prisma.agent.update({
-          where: { id: agent.id },
-          data: { isActive: validated.agentActive },
-        });
+        const agentUpdate: Record<string, unknown> = {};
+        if (validated.agentActive !== undefined) agentUpdate.isActive = validated.agentActive;
+        if (validated.webhookUrl !== undefined) {
+          agentUpdate.webhookUrl = validated.webhookUrl === "" ? null : validated.webhookUrl;
+        }
+        if (validated.webhookToken !== undefined) {
+          agentUpdate.webhookToken = validated.webhookToken === "" ? null : validated.webhookToken;
+        }
 
-        // Pause/resume beacons
-        if (!validated.agentActive) {
-          // Pausing — preserve beacons
+        if (Object.keys(agentUpdate).length > 0) {
+          await prisma.agent.update({
+            where: { id: agent.id },
+            data: agentUpdate,
+          });
+        }
+
+        // Pause/resume beacons only on active-toggle
+        if (validated.agentActive === false) {
           await prisma.beacon.updateMany({
             where: { agentId: agent.id, isActive: true },
             data: { isActive: false, preservable: true },
           });
-        } else {
-          // Resuming — restore preserved beacons
+        } else if (validated.agentActive === true) {
           await prisma.beacon.updateMany({
             where: { agentId: agent.id, isActive: false, preservable: true },
             data: { isActive: true },

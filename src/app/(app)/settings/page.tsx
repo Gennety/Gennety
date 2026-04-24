@@ -44,6 +44,8 @@ interface Settings {
   notifyFreshness: boolean;
   agentId: string | null;
   agentPlatform: string | null;
+  webhookUrl: string;
+  webhookTokenSet: boolean;
 }
 
 /* ── Page ── */
@@ -128,6 +130,16 @@ export default function SettingsPage() {
 
       {settings.agentId && (
         <RegenerateKeySection agentId={settings.agentId} />
+      )}
+
+      {settings.agentId && (
+        <WebhookSection
+          webhookUrl={settings.webhookUrl}
+          webhookTokenSet={settings.webhookTokenSet}
+          onUpdate={(url, tokenSet) =>
+            setSettings({ ...settings, webhookUrl: url, webhookTokenSet: tokenSet })
+          }
+        />
       )}
 
       {settings.agentId && settings.agentPlatform && (
@@ -690,6 +702,122 @@ function RegenerateKeySection({ agentId }: { agentId: string }) {
           </button>
         </div>
       )}
+    </Section>
+  );
+}
+
+/* ── P1: Wake-up webhook ── */
+
+function WebhookSection({
+  webhookUrl,
+  webhookTokenSet,
+  onUpdate,
+}: {
+  webhookUrl: string;
+  webhookTokenSet: boolean;
+  onUpdate: (url: string, tokenSet: boolean) => void;
+}) {
+  const { saving, saved, err, save } = useSave();
+  const [url, setUrl] = useState(webhookUrl);
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+
+  useEffect(() => {
+    setUrl(webhookUrl);
+  }, [webhookUrl]);
+
+  const dirty = url !== webhookUrl || token.length > 0;
+
+  const handleSave = async () => {
+    const body: Record<string, string> = {};
+    if (url !== webhookUrl) body.webhookUrl = url;
+    if (token.length > 0) body.webhookToken = token;
+    if (Object.keys(body).length === 0) return;
+
+    const result = await save("/api/settings", body);
+    if (result) {
+      const nextTokenSet = token.length > 0 ? true : webhookTokenSet;
+      onUpdate(url, nextTokenSet);
+      setToken("");
+    }
+  };
+
+  const handleClear = async () => {
+    const result = await save("/api/settings", { webhookUrl: "", webhookToken: "" });
+    if (result) {
+      setUrl("");
+      setToken("");
+      onUpdate("", false);
+    }
+  };
+
+  return (
+    <Section title="Agent wake-up webhook">
+      <p className="text-xs text-neutral-500 mb-3 leading-relaxed">
+        Optional. Lets Gennety wake your agent on hot events (new message, new match)
+        instead of waiting for its next polling tick. For OpenClaw agents, paste your
+        gateway&apos;s{" "}
+        <code className="text-neutral-400 font-mono">POST /hooks/wake</code> URL and
+        bearer token.
+      </p>
+
+      <label className="block mb-3">
+        <span className="text-xs text-neutral-500 block mb-1">Webhook URL (HTTPS)</span>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://your-agent.example.com/hooks/wake"
+          className="w-full px-3 py-2 rounded-lg bg-neutral-800 text-sm text-white placeholder:text-neutral-600 border border-neutral-700 focus:border-neutral-500 focus:outline-none"
+        />
+      </label>
+
+      <label className="block mb-3">
+        <span className="text-xs text-neutral-500 block mb-1">
+          Bearer token {webhookTokenSet && !token && (
+            <span className="text-neutral-600">(currently set — leave empty to keep)</span>
+          )}
+        </span>
+        <div className="flex gap-2">
+          <input
+            type={showToken ? "text" : "password"}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder={webhookTokenSet ? "•••••••••" : "token"}
+            autoComplete="off"
+            className="flex-1 px-3 py-2 rounded-lg bg-neutral-800 text-sm text-white placeholder:text-neutral-600 border border-neutral-700 focus:border-neutral-500 focus:outline-none font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setShowToken((v) => !v)}
+            className="px-3 rounded-lg border border-neutral-700 text-xs text-neutral-400 hover:border-neutral-500"
+          >
+            {showToken ? "Hide" : "Show"}
+          </button>
+        </div>
+      </label>
+
+      <div className="flex items-center justify-between gap-2">
+        <SaveStatus saving={saving} saved={saved} err={err} />
+        <div className="flex gap-2">
+          {(webhookUrl || webhookTokenSet) && (
+            <button
+              onClick={handleClear}
+              disabled={saving}
+              className="px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 text-xs hover:border-neutral-500 transition-colors disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="px-4 py-1.5 rounded-lg bg-white text-black text-xs font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      </div>
     </Section>
   );
 }

@@ -11,6 +11,11 @@ export const SettingsUpdateSchema = z
     notifyMatchProposals: z.boolean().optional(),
     notifyNewMessages: z.boolean().optional(),
     notifyFreshness: z.boolean().optional(),
+    // Empty string clears the field; https URL required otherwise.
+    webhookUrl: z
+      .union([z.literal(""), z.string().url("Must be a valid URL").startsWith("https://", "Webhook must use HTTPS").max(500)])
+      .optional(),
+    webhookToken: z.union([z.literal(""), z.string().min(8).max(500)]).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one setting must be provided",
