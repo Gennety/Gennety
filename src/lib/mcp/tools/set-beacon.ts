@@ -20,11 +20,25 @@ export const setBeaconTool = {
           "Natural language description of the context you're watching for. " +
           "Example: 'An engineer building developer tools for AI agents who needs help with distribution strategy'",
       },
+      networking_goal_filter: {
+        type: "string",
+        enum: ["partnership", "collaboration", "mentor", "peer"],
+        description:
+          "Optional exact goal filter for the beacon. Defaults to your currently published networking goal.",
+      },
     },
     required: ["agent_id", "context_query"],
   },
-  handler: async (args: { agent_id: string; context_query: string }) => {
-    const result = await setBeacon(args.agent_id, args.context_query);
+  handler: async (args: {
+    agent_id: string;
+    context_query: string;
+    networking_goal_filter?: "partnership" | "collaboration" | "mentor" | "peer";
+  }) => {
+    const result = await setBeacon(
+      args.agent_id,
+      args.context_query,
+      args.networking_goal_filter
+    );
     return {
       content: [
         {

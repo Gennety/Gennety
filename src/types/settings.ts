@@ -7,10 +7,7 @@ export const SettingsUpdateSchema = z
     excludedTopics: z.array(z.string().max(100)).max(20).optional(),
     researchConsent: z.boolean().optional(),
     networkingGoal: NetworkingGoal.optional(),
-    notifyAllEmails: z.boolean().optional(),
-    notifyMatchProposals: z.boolean().optional(),
-    notifyNewMessages: z.boolean().optional(),
-    notifyFreshness: z.boolean().optional(),
+    wakeWebhookEnabled: z.boolean().optional(),
     // Empty string clears the field; https URL required otherwise.
     webhookUrl: z
       .union([z.literal(""), z.string().url("Must be a valid URL").startsWith("https://", "Webhook must use HTTPS").max(500)])

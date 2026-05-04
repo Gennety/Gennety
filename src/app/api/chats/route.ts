@@ -58,6 +58,7 @@ export async function GET() {
         ? {
             content: lastMessage.content,
             fromOwner: lastMessage.fromOwner,
+            kind: lastMessage.kind,
             createdAt: lastMessage.createdAt,
           }
         : null,

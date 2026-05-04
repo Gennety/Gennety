@@ -3,6 +3,9 @@ import { createChatWithOpeningMessages } from "@/lib/services/chat";
 import { recordEvent } from "@/lib/services/reputation";
 import { createInboxEvent } from "@/lib/services/inbox";
 import { pokeAgent } from "@/lib/services/agent-wake";
+import { areNetworkingGoalsCompatible } from "@/lib/networking-goal";
+import type { NetworkingGoal } from "@/types/context";
+import { recordAnalyticsEvent } from "@/lib/analytics-tracking";
 
 /**
  * NegotiationFSM — state machine for agent-to-agent match negotiation
@@ -22,7 +25,12 @@ import { pokeAgent } from "@/lib/services/agent-wake";
 export async function initiateNegotiation(
   initiatorAgentId: string, // external agent_id like "agent_arlan_001"
   targetAgentId: string, // external agent_id of the other agent
-  reasoning?: string // why the initiator thinks this match is valuable
+  reasoning?: string, // why the initiator thinks this match is valuable
+  options?: {
+    candidateSimilarity?: number;
+    discoverySource?: "UNKNOWN" | "SEARCH" | "BEACON";
+    sourceBeaconId?: string;
+  }
 ) {
   if (initiatorAgentId === targetAgentId) {
     throw new Error("Cannot initiate negotiation with yourself");
@@ -41,6 +49,16 @@ export async function initiateNegotiation(
   });
   if (!agentB) throw new Error(`Agent not found: ${targetAgentId}`);
   if (!agentB.context) throw new Error(`Agent has no context: ${targetAgentId}`);
+  if (
+    !areNetworkingGoalsCompatible(
+      agentA.context.networkingGoal as NetworkingGoal,
+      agentB.context.networkingGoal as NetworkingGoal
+    )
+  ) {
+    throw new Error(
+      `Incompatible networking goals: ${agentA.context.networkingGoal} vs ${agentB.context.networkingGoal}`
+    );
+  }
 
   // Normalize agent pair order for unique constraint
   const [normalizedAId, normalizedBId] =
@@ -64,6 +82,27 @@ export async function initiateNegotiation(
     };
   }
 
+  let matchSimilarity = options?.candidateSimilarity ?? null;
+  if (matchSimilarity === null) {
+    const similarityRows = await prisma.$queryRaw<Array<{ similarity: number | null }>>`
+      SELECT (1 - (a.embedding <=> b.embedding)) AS similarity
+      FROM agent_contexts a
+      JOIN agent_contexts b ON b.agent_id = ${agentB.id}
+      WHERE a.agent_id = ${agentA.id}
+        AND a.embedding IS NOT NULL
+        AND b.embedding IS NOT NULL
+      LIMIT 1
+    `;
+    const similarityValue = similarityRows[0]?.similarity;
+    matchSimilarity =
+      similarityValue !== null && similarityValue !== undefined
+        ? Number(similarityValue)
+        : null;
+  }
+
+  const discoverySource =
+    options?.discoverySource ?? (options?.sourceBeaconId ? "BEACON" : "UNKNOWN");
+
   const match = await prisma.match.create({
     data: {
       agentAId: normalizedAId,
@@ -72,6 +111,9 @@ export async function initiateNegotiation(
       overlapSummary: "",
       framingForA: "",
       framingForB: "",
+      matchSimilarity,
+      discoverySource,
+      sourceBeaconId: options?.sourceBeaconId ?? null,
       status: "NEGOTIATING",
     },
   });
@@ -89,10 +131,27 @@ export async function initiateNegotiation(
     });
   }
 
+  await recordAnalyticsEvent({
+    type: "NEGOTIATION_INITIATED",
+    ownerId: agentA.owner.id,
+    agentId: agentA.id,
+    matchId: match.id,
+    beaconId: options?.sourceBeaconId ?? null,
+    metadata: {
+      initiator_external_agent_id: initiatorAgentId,
+      target_external_agent_id: targetAgentId,
+      similarity: matchSimilarity,
+      discovery_source: discoverySource,
+      reasoning: reasoning ?? null,
+    },
+  });
+
   return {
     matchId: match.id,
     status: "NEGOTIATING",
     alreadyExists: false,
+    matchSimilarity,
+    discoverySource,
     agentA: {
       agentId: initiatorAgentId,
       currentWork: agentA.context.currentWork,
@@ -133,8 +192,8 @@ export async function negotiate(
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
-      agentA: { include: { owner: true } },
-      agentB: { include: { owner: true } },
+      agentA: { include: { owner: true, context: true } },
+      agentB: { include: { owner: true, context: true } },
     },
   });
 
@@ -174,14 +233,26 @@ export async function negotiate(
     const initiatorId = isAgentA ? match.agentBId : match.agentAId;
     await recordEvent(initiatorId, "NEGOTIATION_DECLINED");
 
+    await recordAnalyticsEvent({
+      type: "NEGOTIATION_DECLINED",
+      ownerId: agent.ownerId,
+      agentId: agent.id,
+      matchId,
+      metadata: {
+        role: isAgentA ? "initiator" : "responder",
+        evaluation: evaluation ?? null,
+      },
+    });
+
     return { matchId, status: "DECLINED", message: "Negotiation declined" };
   }
 
   // Accept — update framing for this agent's owner
-  const updateData: Record<string, string> = {};
+  const updateData: Record<string, string | Date> = {};
   if (overlapSummary) updateData.overlapSummary = overlapSummary;
   if (isAgentA && framingForOwner) updateData.framingForA = framingForOwner;
   if (isAgentB && framingForOwner) updateData.framingForB = framingForOwner;
+  updateData[isAgentA ? "agentAAcceptedAt" : "agentBAcceptedAt"] = new Date();
 
   await prisma.match.update({
     where: { id: matchId },
@@ -200,6 +271,19 @@ export async function negotiate(
       },
     });
   }
+
+  await recordAnalyticsEvent({
+    type: "NEGOTIATION_ACCEPTED",
+    ownerId: agent.ownerId,
+    agentId: agent.id,
+    matchId,
+    metadata: {
+      role: isAgentA ? "initiator" : "responder",
+      overlap_summary: overlapSummary ?? null,
+      framing_for_owner: framingForOwner ?? null,
+      evaluation: evaluation ?? null,
+    },
+  });
 
   // Log proposal step (overlap + framing provided = concrete proposal)
   if (overlapSummary && framingForOwner) {
@@ -234,14 +318,27 @@ export async function proposeMatch(matchId: string) {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
-      agentA: { include: { owner: true } },
-      agentB: { include: { owner: true } },
+      agentA: { include: { owner: true, context: true } },
+      agentB: { include: { owner: true, context: true } },
     },
   });
 
   if (!match) throw new Error(`Match not found: ${matchId}`);
   if (match.status !== "NEGOTIATING") {
     throw new Error(`Match must be in NEGOTIATING state to propose (current: ${match.status})`);
+  }
+  if (
+    !match.agentA.context ||
+    !match.agentB.context ||
+    !areNetworkingGoalsCompatible(
+      match.agentA.context.networkingGoal as NetworkingGoal,
+      match.agentB.context.networkingGoal as NetworkingGoal
+    )
+  ) {
+    throw new Error("Cannot propose: networking goals are no longer compatible.");
+  }
+  if (!match.agentAAcceptedAt || !match.agentBAcceptedAt) {
+    throw new Error("Cannot propose: both agents must explicitly accept the negotiation first.");
   }
 
   // Validate both framings exist — quality gate
@@ -286,8 +383,32 @@ export async function proposeMatch(matchId: string) {
     recordEvent(match.agentBId, "MATCH_PROPOSED"),
   ]);
 
-  // Write inbox events for both owners — agents will deliver via check_in,
-  // email fallback fires via cron if events stay undelivered past threshold.
+  await Promise.all([
+    recordAnalyticsEvent({
+      type: "MATCH_PROPOSED",
+      ownerId: match.agentA.owner.id,
+      agentId: match.agentAId,
+      matchId,
+      beaconId: match.sourceBeaconId,
+      metadata: {
+        discovery_source: match.discoverySource,
+        similarity: match.matchSimilarity,
+      },
+    }),
+    recordAnalyticsEvent({
+      type: "MATCH_PROPOSED",
+      ownerId: match.agentB.owner.id,
+      agentId: match.agentBId,
+      matchId,
+      beaconId: match.sourceBeaconId,
+      metadata: {
+        discovery_source: match.discoverySource,
+        similarity: match.matchSimilarity,
+      },
+    }),
+  ]);
+
+  // Write inbox events for both owners — agents will deliver them via check_in.
   const ownerA = match.agentA.owner;
   const ownerB = match.agentB.owner;
 
@@ -341,114 +462,189 @@ export async function proposeMatch(matchId: string) {
 }
 
 export async function confirmMatch(matchId: string, ownerId: string) {
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: {
-      agentA: { include: { owner: true } },
-      agentB: { include: { owner: true } },
-    },
-  });
-
-  if (!match) throw new Error(`Match not found: ${matchId}`);
-  if (match.status !== "PROPOSED") {
-    throw new Error(`Match must be in PROPOSED state to confirm (current: ${match.status})`);
-  }
-
-  const isOwnerA = match.agentA.owner.id === ownerId;
-  const isOwnerB = match.agentB.owner.id === ownerId;
-  if (!isOwnerA && !isOwnerB) {
-    throw new Error(`Owner ${ownerId} is not part of this match`);
-  }
-
-  const updateData: Record<string, boolean> = {};
-  if (isOwnerA) updateData.confirmedByA = true;
-  if (isOwnerB) updateData.confirmedByB = true;
-
-  await prisma.match.update({
-    where: { id: matchId },
-    data: updateData,
-  });
-
-  // Record MATCH_ACCEPTED for the agent whose owner just confirmed
-  const confirmingAgentId = isOwnerA ? match.agentAId : match.agentBId;
-  await recordEvent(confirmingAgentId, "MATCH_ACCEPTED");
-
-  // Check if both confirmed
-  const newConfirmedByA = isOwnerA ? true : match.confirmedByA;
-  const newConfirmedByB = isOwnerB ? true : match.confirmedByB;
-  const bothConfirmed = newConfirmedByA && newConfirmedByB;
-
-  if (bothConfirmed) {
-    // Transition to MATCHED and create chat
-    await prisma.match.update({
+  const confirmation = await prisma.$transaction(async (tx) => {
+    const match = await tx.match.findUnique({
       where: { id: matchId },
-      data: { status: "MATCHED", matchedAt: new Date() },
+      include: {
+        agentA: { include: { owner: true } },
+        agentB: { include: { owner: true } },
+        chat: true,
+      },
     });
 
-    const chat = await createChatWithOpeningMessages(matchId);
+    if (!match) throw new Error(`Match not found: ${matchId}`);
 
-    // Record MATCH_COMPLETED for both agents
+    const isOwnerA = match.agentA.owner.id === ownerId;
+    const isOwnerB = match.agentB.owner.id === ownerId;
+    if (!isOwnerA && !isOwnerB) {
+      throw new Error(`Owner ${ownerId} is not part of this match`);
+    }
+
+    if (match.status === "MATCHED") {
+      return {
+        phase: "matched" as const,
+        finalizedNow: false,
+        newlyConfirmed: false,
+        confirmedByA: true,
+        confirmedByB: true,
+        confirmingAgentId: isOwnerA ? match.agentAId : match.agentBId,
+        chatId: match.chat?.id ?? null,
+        agentAId: match.agentAId,
+        agentBId: match.agentBId,
+        overlapSummary: match.overlapSummary,
+        agentA: match.agentA,
+        agentB: match.agentB,
+      };
+    }
+
+    if (match.status !== "PROPOSED") {
+      throw new Error(`Match must be in PROPOSED state to confirm (current: ${match.status})`);
+    }
+
+    const confirmingAgentId = isOwnerA ? match.agentAId : match.agentBId;
+    const wasConfirmedByMe = isOwnerA ? match.confirmedByA : match.confirmedByB;
+
+    if (!wasConfirmedByMe) {
+      await tx.match.update({
+        where: { id: matchId },
+        data: isOwnerA ? { confirmedByA: true } : { confirmedByB: true },
+      });
+    }
+
+    const refreshed = await tx.match.findUnique({
+      where: { id: matchId },
+      include: {
+        agentA: { include: { owner: true } },
+        agentB: { include: { owner: true } },
+        chat: true,
+      },
+    });
+
+    if (!refreshed) {
+      throw new Error(`Match not found after confirmation: ${matchId}`);
+    }
+
+    const bothConfirmed = refreshed.confirmedByA && refreshed.confirmedByB;
+    let finalizedNow = false;
+
+    if (bothConfirmed && refreshed.status === "PROPOSED") {
+      await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: "MATCHED",
+          matchedAt: refreshed.matchedAt ?? new Date(),
+        },
+      });
+      finalizedNow = true;
+    }
+
+    return {
+      phase: bothConfirmed ? ("matched" as const) : ("proposed" as const),
+      finalizedNow,
+      newlyConfirmed: !wasConfirmedByMe,
+      confirmedByA: refreshed.confirmedByA,
+      confirmedByB: refreshed.confirmedByB,
+      confirmingAgentId,
+      chatId: refreshed.chat?.id ?? null,
+      agentAId: refreshed.agentAId,
+      agentBId: refreshed.agentBId,
+      overlapSummary: refreshed.overlapSummary,
+      agentA: refreshed.agentA,
+      agentB: refreshed.agentB,
+    };
+  });
+
+  if (confirmation.newlyConfirmed) {
+    await recordEvent(confirmation.confirmingAgentId, "MATCH_ACCEPTED");
+    await recordAnalyticsEvent({
+      type: "OWNER_CONFIRMED_MATCH",
+      ownerId,
+      agentId: confirmation.confirmingAgentId,
+      matchId,
+    });
+  }
+
+  if (confirmation.phase === "proposed") {
+    return {
+      matchId,
+      status: "PROPOSED",
+      confirmedByA: confirmation.confirmedByA,
+      confirmedByB: confirmation.confirmedByB,
+      bothConfirmed: false,
+      message: `Waiting for ${!confirmation.confirmedByA ? "Owner A" : "Owner B"} to confirm`,
+    };
+  }
+
+  const chat = confirmation.chatId
+    ? { id: confirmation.chatId }
+    : await createChatWithOpeningMessages(matchId);
+
+  if (confirmation.finalizedNow) {
     await Promise.all([
-      recordEvent(match.agentAId, "MATCH_COMPLETED"),
-      recordEvent(match.agentBId, "MATCH_COMPLETED"),
+      recordEvent(confirmation.agentAId, "MATCH_COMPLETED"),
+      recordEvent(confirmation.agentBId, "MATCH_COMPLETED"),
     ]);
 
-    // Write inbox events for both owners — chat is now open.
-    const oA = match.agentA.owner;
-    const oB = match.agentB.owner;
+    const ownerA = confirmation.agentA.owner;
+    const ownerB = confirmation.agentB.owner;
     const matchedAt = new Date().toISOString();
 
     await Promise.all([
       createInboxEvent({
-        ownerId: oA.id,
-        agentId: match.agentAId,
+        ownerId: ownerA.id,
+        agentId: confirmation.agentAId,
         type: "MATCH_CONFIRMED",
         referenceId: matchId,
         payload: {
           match_id: matchId,
           chat_id: chat.id,
-          other_agent_id: match.agentB.agentId,
-          other_display_name: match.agentB.displayName,
-          other_owner_name: oB.name,
-          overlap_summary: match.overlapSummary,
+          other_agent_id: confirmation.agentB.agentId,
+          other_display_name: confirmation.agentB.displayName,
+          other_owner_name: ownerB.name,
+          overlap_summary: confirmation.overlapSummary,
           matched_at: matchedAt,
         },
       }),
       createInboxEvent({
-        ownerId: oB.id,
-        agentId: match.agentBId,
+        ownerId: ownerB.id,
+        agentId: confirmation.agentBId,
         type: "MATCH_CONFIRMED",
         referenceId: matchId,
         payload: {
           match_id: matchId,
           chat_id: chat.id,
-          other_agent_id: match.agentA.agentId,
-          other_display_name: match.agentA.displayName,
-          other_owner_name: oA.name,
-          overlap_summary: match.overlapSummary,
+          other_agent_id: confirmation.agentA.agentId,
+          other_display_name: confirmation.agentA.displayName,
+          other_owner_name: ownerA.name,
+          overlap_summary: confirmation.overlapSummary,
           matched_at: matchedAt,
         },
       }),
     ]).catch((err) => console.error("[inbox] Match confirmed events failed:", err));
 
-    pokeAgent({ agentId: match.agentAId, reason: "Match confirmed — chat open" });
-    pokeAgent({ agentId: match.agentBId, reason: "Match confirmed — chat open" });
+    pokeAgent({ agentId: confirmation.agentAId, reason: "Match confirmed — chat open" });
+    pokeAgent({ agentId: confirmation.agentBId, reason: "Match confirmed — chat open" });
 
-    return {
-      matchId,
-      status: "MATCHED",
-      chatId: chat.id,
-      bothConfirmed: true,
-    };
+    await Promise.all([
+      recordAnalyticsEvent({
+        type: "MATCH_CONFIRMED",
+        ownerId,
+        agentId: confirmation.confirmingAgentId,
+        matchId,
+      }),
+      recordAnalyticsEvent({
+        type: "CHAT_OPENED",
+        matchId,
+        chatId: chat.id,
+      }),
+    ]);
   }
 
   return {
     matchId,
-    status: "PROPOSED",
-    confirmedByA: newConfirmedByA,
-    confirmedByB: newConfirmedByB,
-    bothConfirmed: false,
-    message: `Waiting for ${!newConfirmedByA ? "Owner A" : "Owner B"} to confirm`,
+    status: "MATCHED",
+    chatId: chat.id,
+    bothConfirmed: true,
   };
 }
 
@@ -475,6 +671,14 @@ export async function markDormant(matchId: string, ownerId: string) {
   await prisma.match.update({
     where: { id: matchId },
     data: { status: "DORMANT" },
+  });
+
+  await recordAnalyticsEvent({
+    type: "MATCH_DORMANT",
+    ownerId,
+    agentId: isOwnerA ? match.agentAId : match.agentBId,
+    matchId,
+    beaconId: match.sourceBeaconId,
   });
 
   return { matchId, status: "DORMANT", markedBy: ownerId };

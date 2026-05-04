@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { NetworkingGoal } from "./context";
+import { isSupportedCountryCode } from "@/lib/countries";
 
 export const AgentPlatform = z.enum([
   "open_claw",
@@ -33,6 +34,9 @@ export const PLATFORM_LABELS: Record<AgentPlatform, string> = {
 export const OnboardingSchema = z.object({
   agentPlatform: AgentPlatform,
   networkingGoal: NetworkingGoal,
+  countryCode: z.string().trim().toUpperCase().refine(isSupportedCountryCode, {
+    message: "A valid country is required",
+  }),
   privacyConsent: z.boolean().refine((v) => v === true, {
     message: "Privacy consent is required to use Gennety",
   }),

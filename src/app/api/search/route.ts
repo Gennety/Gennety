@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { generateEmbedding } from "@/lib/embeddings";
+import { generateEmbeddingWithUsage } from "@/lib/embeddings";
 import { getFreshnessWeight } from "@/lib/services/freshness";
 import {
   SEARCH_CUTOFF_MS,
   SEARCH_BOOST_WINDOW_MS,
   LIVENESS_BOOST,
 } from "@/lib/config/liveness";
+import { demoConfig } from "@/lib/config/demo";
+import { publicAgentDemoFilter } from "@/lib/demo/visibility";
 
 /**
  * GET /api/search
@@ -48,9 +51,19 @@ async function handleSemanticSearch(
   type: string,
   limit: number
 ) {
-  const queryEmbedding = await generateEmbedding(query);
+  const { embedding: queryEmbedding } = await generateEmbeddingWithUsage(query, {
+    operation: "public_search_semantic",
+    metadata: {
+      query,
+      type,
+      limit,
+    },
+  });
   const livenessCutoff = new Date(Date.now() - SEARCH_CUTOFF_MS);
   const boostCutoff = Date.now() - SEARCH_BOOST_WINDOW_MS;
+  const demoClause = demoConfig.enabled
+    ? Prisma.sql``
+    : Prisma.sql`AND a.is_demo = false`;
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -102,6 +115,7 @@ async function handleSemanticSearch(
     FROM agent_contexts ac
     JOIN agents a ON a.id = ac.agent_id
     WHERE a.is_active = true
+      ${demoClause}
       AND ac.embedding IS NOT NULL
       AND ac.freshness_state NOT IN ('STALE', 'INACTIVE')
       AND a.last_active_at > ${livenessCutoff}
@@ -160,7 +174,21 @@ async function handleSemanticSearch(
 /* ─── Match search (semantic on participants + text on overlap) ─── */
 
 async function handleMatchSearch(query: string, limit: number) {
-  const queryEmbedding = await generateEmbedding(query);
+  const { embedding: queryEmbedding } = await generateEmbeddingWithUsage(query, {
+    operation: "public_search_matches",
+    metadata: {
+      query,
+      limit,
+    },
+  });
+  const demoClause = demoConfig.enabled
+    ? Prisma.sql``
+    : Prisma.sql`AND a.is_demo = false`;
+  const agentFilter = publicAgentDemoFilter();
+  const matchDemoFilter =
+    Object.keys(agentFilter).length > 0
+      ? { agentA: agentFilter, agentB: agentFilter }
+      : {};
 
   // Find agents whose context is similar to the query
   const similarAgents = await prisma.$queryRaw<
@@ -172,6 +200,7 @@ async function handleMatchSearch(query: string, limit: number) {
     FROM agent_contexts ac
     JOIN agents a ON a.id = ac.agent_id
     WHERE a.is_active = true
+      ${demoClause}
       AND ac.embedding IS NOT NULL
       AND (1 - (ac.embedding <=> ${queryEmbedding}::vector)) > 0.45
     ORDER BY similarity DESC
@@ -188,6 +217,7 @@ async function handleMatchSearch(query: string, limit: number) {
   const textMatches = await prisma.match.findMany({
     where: {
       isPublic: true,
+      ...matchDemoFilter,
       overlapSummary: { contains: query, mode: "insensitive" },
     },
     select: { id: true },
@@ -212,7 +242,7 @@ async function handleMatchSearch(query: string, limit: number) {
   }
 
   const matches = await prisma.match.findMany({
-    where: { isPublic: true, OR: orConditions },
+    where: { isPublic: true, OR: orConditions, ...matchDemoFilter },
     take: limit * 2,
     orderBy: { createdAt: "desc" },
     include: {
@@ -245,8 +275,14 @@ async function handleMatchSearch(query: string, limit: number) {
 /* ─── Leaderboard: top agents by reputation ─── */
 
 async function handleLeaderboard(limit: number) {
+  // Exclude demo agents from leaderboard when demo network is disabled —
+  // otherwise they'd inflate rankings with scripted activity.
   const agents = await prisma.agent.findMany({
-    where: { isActive: true, context: { isNot: null } },
+    where: {
+      isActive: true,
+      context: { isNot: null },
+      ...publicAgentDemoFilter(),
+    },
     orderBy: { reputationScore: "desc" },
     take: limit,
     include: {
@@ -283,9 +319,16 @@ async function handleLeaderboard(limit: number) {
 
 async function handleTrending(limit: number) {
   const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const agentFilter = publicAgentDemoFilter();
 
   const matches = await prisma.match.findMany({
-    where: { isPublic: true, createdAt: { gte: since } },
+    where: {
+      isPublic: true,
+      createdAt: { gte: since },
+      ...(Object.keys(agentFilter).length > 0
+        ? { agentA: agentFilter, agentB: agentFilter }
+        : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: limit * 3,
     include: {
@@ -315,11 +358,17 @@ async function handleTrending(limit: number) {
 /* ─── Suggestions: popular topics from agent expertise ─── */
 
 async function handleSuggestions() {
+  const demoWhereClause = demoConfig.enabled
+    ? Prisma.sql``
+    : Prisma.sql`AND a.is_demo = false`;
   const rows = await prisma.$queryRaw<
     Array<{ topic: string; cnt: bigint }>
   >`
     SELECT unnest(expertise) AS topic, count(*) AS cnt
     FROM agent_contexts
+    JOIN agents a ON a.id = agent_contexts.agent_id
+    WHERE TRUE
+      ${demoWhereClause}
     GROUP BY topic
     ORDER BY cnt DESC
     LIMIT 12
@@ -333,7 +382,9 @@ async function handleSuggestions() {
   >`
     SELECT networking_goal AS goal, count(*) AS cnt
     FROM agent_contexts
+    JOIN agents a ON a.id = agent_contexts.agent_id
     WHERE networking_goal IS NOT NULL
+      ${demoWhereClause}
     GROUP BY networking_goal
     ORDER BY cnt DESC
     LIMIT 4

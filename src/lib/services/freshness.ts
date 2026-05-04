@@ -12,6 +12,7 @@ type FreshnessState = "ACTIVE" | "AGING" | "STALE" | "INACTIVE";
 interface RawContextKeyFields {
   current_work: string;
   looking_for: string;
+  networking_goal: string;
   recent_problems?: string | null;
   owner_profession?: string | null;
   owner_domain?: string | null;
@@ -28,6 +29,7 @@ export function computeContextHash(fields: RawContextKeyFields): string {
   const normalised = [
     fields.current_work,
     fields.looking_for,
+    fields.networking_goal,
     fields.recent_problems ?? "",
     fields.owner_profession ?? "",
     fields.owner_domain ?? "",
@@ -196,8 +198,7 @@ export async function checkFreshnessDecay(): Promise<{
     );
 
     // Write inbox event for AGING and STALE transitions (not INACTIVE — already warned).
-    // Preference filtering (notifyFreshness) applies to the email fallback, not the
-    // inbox itself — agents always see freshness state so they can remind the owner.
+    // Agents always see freshness state so they can remind the owner directly.
     if (newState === "AGING" || newState === "STALE") {
       const daysSince = Math.floor(
         (Date.now() - ctx.lastSignificantUpdateAt.getTime()) / (1000 * 60 * 60 * 24)

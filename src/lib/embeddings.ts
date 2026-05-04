@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { estimateEmbeddingCostUsd, getEmbeddingModel, aiPricing } from "@/lib/ai-costs";
+import { recordComputeUsage } from "@/lib/analytics-tracking";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -8,12 +10,69 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
+interface EmbeddingLogContext {
+  operation: string;
+  ownerId?: string | null;
+  agentId?: string | null;
+  matchId?: string | null;
+  beaconId?: string | null;
+  chatId?: string | null;
+  adviceSessionId?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface EmbeddingUsage {
+  provider: string;
+  model: string;
+  tokensInput: number;
+  costUsd: number;
+}
+
+export async function generateEmbeddingWithUsage(
+  text: string,
+  logContext?: EmbeddingLogContext
+): Promise<{ embedding: number[]; usage: EmbeddingUsage }> {
   const response = await getOpenAI().embeddings.create({
-    model: "text-embedding-ada-002",
+    model: getEmbeddingModel(),
     input: text,
   });
-  return response.data[0].embedding;
+
+  const tokensInput = response.usage?.prompt_tokens ?? 0;
+  const usage: EmbeddingUsage = {
+    provider: aiPricing.embedding.provider,
+    model: getEmbeddingModel(),
+    tokensInput,
+    costUsd: estimateEmbeddingCostUsd(tokensInput),
+  };
+
+  if (logContext) {
+    await recordComputeUsage({
+      category: "EMBEDDING",
+      provider: usage.provider,
+      model: usage.model,
+      operation: logContext.operation,
+      ownerId: logContext.ownerId,
+      agentId: logContext.agentId,
+      matchId: logContext.matchId,
+      beaconId: logContext.beaconId,
+      chatId: logContext.chatId,
+      adviceSessionId: logContext.adviceSessionId,
+      tokensInput: usage.tokensInput,
+      tokensOutput: 0,
+      costUsd: usage.costUsd,
+      metadata: {
+        text_length: text.length,
+        ...logContext.metadata,
+      },
+    });
+  }
+
+  return { embedding: response.data[0].embedding, usage };
+}
+
+export async function generateEmbedding(text: string): Promise<number[]> {
+  const result = await generateEmbeddingWithUsage(text);
+  return result.embedding;
 }
 
 export function contextToEmbeddingText(context: {
@@ -49,6 +108,7 @@ export function contextToEmbeddingText(context: {
   if (context.collaborationStyle) parts.push(`Works best with: ${context.collaborationStyle}`);
 
   // Current active context (from MEMORY.md — highest weight, listed last)
+  parts.push(`Networking goal: ${context.networkingGoal}`);
   parts.push(`Currently: ${context.currentWork}`);
   if (context.expertise?.length) parts.push(`Expert in: ${context.expertise.join(', ')}`);
   if (context.recentProblems) parts.push(`Working through: ${context.recentProblems}`);

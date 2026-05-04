@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         chat: {
           include: {
             messages: { orderBy: { createdAt: "asc" } },
+            adviceSessions: { orderBy: { createdAt: "desc" } },
           },
         },
       },
@@ -77,8 +78,25 @@ export async function GET(request: NextRequest) {
     messages: match.chat.messages.map((m) => ({
       id: m.id,
       fromOwner: m.fromOwner,
+      kind: m.kind,
+      adviceSessionId: m.adviceSessionId,
       content: m.content,
       createdAt: m.createdAt,
+    })),
+    adviceSessions: match.chat.adviceSessions.map((session) => ({
+      id: session.id,
+      requestedByOwnerId: session.requestedByOwnerId,
+      responderOwnerId: session.responderOwnerId,
+      promptKey: session.promptKey,
+      promptTitle: session.promptTitle,
+      promptText: session.promptText,
+      status: session.status,
+      respondedAt: session.respondedAt,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+      summary: session.summary,
+      recommendation: session.recommendation,
+      createdAt: session.createdAt,
     })),
   });
 }
@@ -149,6 +167,7 @@ export async function POST(request: NextRequest) {
     data: {
       chatId: match.chat.id,
       fromOwner: ownerId,
+      kind: "HUMAN",
       content,
     },
   });
@@ -160,8 +179,7 @@ export async function POST(request: NextRequest) {
     data: { [readField]: new Date() },
   });
 
-  // Write inbox event for the recipient's agent — agent delivers via check_in,
-  // email fallback fires via cron if undelivered past threshold.
+  // Write inbox event for the recipient's agent — the agent delivers it via check_in.
   const recipientOwner = isOwnerA ? match.agentB.owner : match.agentA.owner;
   const recipientAgentInternalId = isOwnerA ? match.agentBId : match.agentAId;
   const senderOwner = isOwnerA ? match.agentA.owner : match.agentB.owner;
@@ -187,6 +205,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     id: message.id,
     fromOwner: message.fromOwner,
+    kind: message.kind,
+    adviceSessionId: message.adviceSessionId,
     content: message.content,
     createdAt: message.createdAt,
   });

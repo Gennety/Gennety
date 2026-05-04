@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/db";
+import { estimateAnthropicCostUsd, getAnthropicSonnetModel, aiPricing } from "@/lib/ai-costs";
+import { recordComputeUsage } from "@/lib/analytics-tracking";
 
 let _anthropic: Anthropic | null = null;
 function getAnthropic(): Anthropic | null {
@@ -20,13 +22,12 @@ interface MatchContext {
 
 async function generateOpeningMessage(
   ctx: MatchContext,
-  forOwner: "A" | "B"
+  forOwner: "A" | "B",
+  refs: { ownerId: string; agentId: string; matchId: string; chatId: string }
 ): Promise<string> {
   const anthropic = getAnthropic();
   if (!anthropic) {
-    // Fallback when API key not configured
-    const framing = forOwner === "A" ? ctx.framingForA : ctx.framingForB;
-    return `Here's why you should talk: ${ctx.overlapSummary}\n\n${framing}`;
+    return forOwner === "A" ? ctx.framingForA : ctx.framingForB;
   }
 
   const ownerName = forOwner === "A" ? ctx.ownerA.name : ctx.ownerB.name;
@@ -35,7 +36,7 @@ async function generateOpeningMessage(
   const framing = forOwner === "A" ? ctx.framingForA : ctx.framingForB;
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: getAnthropicSonnetModel(),
     max_tokens: 200,
     messages: [
       {
@@ -55,12 +56,38 @@ Be specific and concrete. No generic greetings. No filler words. Maximum 2 sente
     ],
   });
 
-  const text = response.content[0];
-  if (text.type === "text") return text.text;
-  return `${ctx.overlapSummary}\n\n${framing}`;
+  const tokensInput = response.usage?.input_tokens ?? 0;
+  const tokensOutput = response.usage?.output_tokens ?? 0;
+  await recordComputeUsage({
+    category: "CHAT_OPENING",
+    provider: aiPricing.anthropicSonnet.provider,
+    model: getAnthropicSonnetModel(),
+    operation: "chat_opening_message",
+    ownerId: refs.ownerId,
+    agentId: refs.agentId,
+    matchId: refs.matchId,
+    chatId: refs.chatId,
+    tokensInput,
+    tokensOutput,
+    costUsd: estimateAnthropicCostUsd(tokensInput, tokensOutput),
+    metadata: {
+      for_owner: forOwner,
+    },
+  });
+
+  const text = response.content.find((block) => block.type === "text");
+  if (text?.text?.trim()) return text.text.trim();
+  return framing;
 }
 
 export async function createChatWithOpeningMessages(matchId: string) {
+  const existingChat = await prisma.chat.findUnique({
+    where: { matchId },
+  });
+  if (existingChat) {
+    return existingChat;
+  }
+
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
@@ -87,32 +114,54 @@ export async function createChatWithOpeningMessages(matchId: string) {
     },
   };
 
+  const chat = await prisma.chat.upsert({
+    where: { matchId },
+    update: {},
+    create: { matchId },
+  });
+
   let messageA: string;
   let messageB: string;
   try {
     [messageA, messageB] = await Promise.all([
-      generateOpeningMessage(ctx, "A"),
-      generateOpeningMessage(ctx, "B"),
+      generateOpeningMessage(ctx, "A", {
+        ownerId: match.agentA.owner.id,
+        agentId: match.agentA.id,
+        matchId: match.id,
+        chatId: chat.id,
+      }),
+      generateOpeningMessage(ctx, "B", {
+        ownerId: match.agentB.owner.id,
+        agentId: match.agentB.id,
+        matchId: match.id,
+        chatId: chat.id,
+      }),
     ]);
   } catch (err) {
     console.error("[chat] Anthropic API failed, using fallback:", err);
-    messageA = `Here's why you should talk: ${ctx.overlapSummary}\n\n${ctx.framingForA}`;
-    messageB = `Here's why you should talk: ${ctx.overlapSummary}\n\n${ctx.framingForB}`;
+    messageA = ctx.framingForA;
+    messageB = ctx.framingForB;
   }
 
-  const chat = await prisma.chat.create({
-    data: {
-      matchId,
-      messages: {
-        createMany: {
-          data: [
-            { fromOwner: "agent_a", content: messageA },
-            { fromOwner: "agent_b", content: messageB },
-          ],
+  const existingMessages = await prisma.message.count({
+    where: { chatId: chat.id, kind: "AGENT_INTRO" },
+  });
+
+  if (existingMessages === 0) {
+    await prisma.chat.update({
+      where: { id: chat.id },
+      data: {
+        messages: {
+          createMany: {
+            data: [
+              { fromOwner: "agent_a", kind: "AGENT_INTRO", content: messageA },
+              { fromOwner: "agent_b", kind: "AGENT_INTRO", content: messageB },
+            ],
+          },
         },
       },
-    },
-  });
+    });
+  }
 
   return chat;
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/db";
+import { publicAgentDemoFilter } from "@/lib/demo/visibility";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,6 +18,11 @@ export async function GET(req: NextRequest) {
   const where: Record<string, unknown> = { isPublic: true };
   if (status && ["MATCHED", "NEGOTIATING", "PROPOSED"].includes(status)) {
     where.status = status;
+  }
+  const agentFilter = publicAgentDemoFilter();
+  if (Object.keys(agentFilter).length > 0) {
+    where.agentA = agentFilter;
+    where.agentB = agentFilter;
   }
 
   let matches;

@@ -11,7 +11,7 @@ export const checkInTool = {
   description:
     "Heartbeat endpoint — call on the cadence specified by next_check_in_ms (short when inbox has unacked events, otherwise ~15 min). " +
     "Returns the inbox of events to relay to the owner (new messages, match proposals, match confirmations, freshness warnings), " +
-    "plus triggered beacons, incoming negotiations, pending match proposals, and context freshness status. " +
+    "plus privacy and networking-goal update tasks, triggered beacons, incoming negotiations, pending match proposals, and context freshness status. " +
     "After delivering inbox events to the owner, call ack_inbox with the event_ids so they stop being returned. " +
     "Keeps your agent visible in search results.",
   inputSchema: {
@@ -180,6 +180,20 @@ export const checkInTool = {
     if (inboxEvents.length > 0) {
       recommendedActions.push(
         `${inboxEvents.length} inbox event${inboxEvents.length > 1 ? "s" : ""} awaiting delivery — relay to owner, then call ack_inbox`
+      );
+    }
+
+    const privacyEvents = inboxEvents.filter((event) => event.type === "PRIVACY_SETTINGS_CHANGED");
+    if (privacyEvents.length > 0) {
+      recommendedActions.unshift(
+        "Privacy settings changed — update the published context immediately using the latest inbox event before matching again"
+      );
+    }
+
+    const goalEvents = inboxEvents.filter((event) => event.type === "NETWORKING_GOAL_CHANGED");
+    if (goalEvents.length > 0) {
+      recommendedActions.unshift(
+        "Networking goal changed — update your local strategy, reset beacon plans, and re-publish context using the new goal"
       );
     }
 

@@ -3,7 +3,10 @@ import { prisma } from "@/lib/db";
 import { getAuthenticatedOwner } from "@/lib/auth";
 import { safeErrorResponse } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
+import { getPrivacySyncStatus, syncPrivacyTopicsForAgent } from "@/lib/services/privacy-sync";
+import { syncNetworkingGoalForAgent } from "@/lib/services/networking-goal-sync";
 import { SettingsUpdateSchema } from "@/types/settings";
+import { getWakeWebhookUrlError } from "@/lib/wake-webhook";
 import { ZodError } from "zod";
 
 // GET /api/settings — load current settings for the authenticated owner
@@ -26,6 +29,8 @@ export async function GET() {
       return NextResponse.json({ error: "Owner not found" }, { status: 404 });
     }
 
+    const privacySync = owner.agent ? await getPrivacySyncStatus(owner.agent.id) : null;
+
     return NextResponse.json({
       // P0
       agentActive: owner.agent?.isActive ?? false,
@@ -36,14 +41,15 @@ export async function GET() {
 
       // P1
       networkingGoal: owner.networkingGoal,
-      notifyAllEmails: owner.notifyAllEmails,
-      notifyMatchProposals: owner.notifyMatchProposals,
-      notifyNewMessages: owner.notifyNewMessages,
-      notifyFreshness: owner.notifyFreshness,
       agentId: owner.agent?.agentId ?? null,
       agentPlatform: owner.agentPlatform,
+      wakeWebhookEnabled: owner.agent?.wakeWebhookEnabled ?? false,
       webhookUrl: owner.agent?.webhookUrl ?? "",
       webhookTokenSet: !!owner.agent?.webhookToken,
+      wakeWebhookLastPingAt: owner.agent?.wakeWebhookLastPingAt ?? null,
+      wakeWebhookLastPingOk: owner.agent?.wakeWebhookLastPingOk ?? null,
+      wakeWebhookLastPingError: owner.agent?.wakeWebhookLastPingError ?? null,
+      privacySync,
     });
   } catch (error) {
     return safeErrorResponse(error, "Failed to load settings");
@@ -83,14 +89,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
+    const previousOwner =
+      validated.excludedTopics !== undefined || validated.networkingGoal !== undefined
+        ? await prisma.owner.findUnique({
+            where: { id: auth.ownerId },
+            select: { excludedTopics: true, networkingGoal: true },
+          })
+        : null;
+
     // Build Owner update
     const ownerUpdate: Record<string, unknown> = {};
     if (validated.excludedTopics !== undefined) ownerUpdate.excludedTopics = validated.excludedTopics;
     if (validated.networkingGoal !== undefined) ownerUpdate.networkingGoal = validated.networkingGoal;
-    if (validated.notifyAllEmails !== undefined) ownerUpdate.notifyAllEmails = validated.notifyAllEmails;
-    if (validated.notifyMatchProposals !== undefined) ownerUpdate.notifyMatchProposals = validated.notifyMatchProposals;
-    if (validated.notifyNewMessages !== undefined) ownerUpdate.notifyNewMessages = validated.notifyNewMessages;
-    if (validated.notifyFreshness !== undefined) ownerUpdate.notifyFreshness = validated.notifyFreshness;
 
     // Research consent — also write ConsentLog
     if (validated.researchConsent !== undefined) {
@@ -124,9 +134,30 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
+    if (validated.excludedTopics !== undefined && previousOwner) {
+      await syncPrivacyTopicsForAgent({
+        ownerId: auth.ownerId,
+        previousExcludedTopics: previousOwner.excludedTopics ?? [],
+        nextExcludedTopics: validated.excludedTopics,
+      });
+    }
+
+    if (
+      validated.networkingGoal !== undefined &&
+      previousOwner &&
+      previousOwner.networkingGoal !== validated.networkingGoal
+    ) {
+      await syncNetworkingGoalForAgent({
+        ownerId: auth.ownerId,
+        previousGoal: (previousOwner.networkingGoal as "partnership" | "collaboration" | "mentor" | "peer" | null) ?? null,
+        nextGoal: validated.networkingGoal,
+      });
+    }
+
     // Agent-scoped updates (active toggle, webhook)
     const wantsAgentUpdate =
       validated.agentActive !== undefined ||
+      validated.wakeWebhookEnabled !== undefined ||
       validated.webhookUrl !== undefined ||
       validated.webhookToken !== undefined;
 
@@ -136,13 +167,52 @@ export async function PATCH(request: NextRequest) {
       });
 
       if (agent) {
+        if (validated.webhookUrl && validated.webhookUrl !== "") {
+          const webhookUrlError = getWakeWebhookUrlError(validated.webhookUrl);
+          if (webhookUrlError) {
+            return NextResponse.json({ error: webhookUrlError }, { status: 400 });
+          }
+        }
+
+        const nextWebhookUrl =
+          validated.webhookUrl !== undefined
+            ? validated.webhookUrl || null
+            : agent.webhookUrl;
+        const nextWebhookToken =
+          validated.webhookToken !== undefined
+            ? validated.webhookToken || null
+            : agent.webhookToken;
+        const nextWakeWebhookEnabled =
+          validated.wakeWebhookEnabled !== undefined
+            ? validated.wakeWebhookEnabled
+            : agent.wakeWebhookEnabled;
+
+        if (nextWakeWebhookEnabled && (!nextWebhookUrl || !nextWebhookToken)) {
+          return NextResponse.json(
+            { error: "Save both the base URL and bearer token before enabling instant wake" },
+            { status: 400 }
+          );
+        }
+
         const agentUpdate: Record<string, unknown> = {};
         if (validated.agentActive !== undefined) agentUpdate.isActive = validated.agentActive;
+        if (validated.wakeWebhookEnabled !== undefined) {
+          agentUpdate.wakeWebhookEnabled = validated.wakeWebhookEnabled;
+        }
         if (validated.webhookUrl !== undefined) {
           agentUpdate.webhookUrl = validated.webhookUrl === "" ? null : validated.webhookUrl;
+          agentUpdate.wakeWebhookLastPingAt = null;
+          agentUpdate.wakeWebhookLastPingOk = null;
+          agentUpdate.wakeWebhookLastPingError = null;
         }
         if (validated.webhookToken !== undefined) {
           agentUpdate.webhookToken = validated.webhookToken === "" ? null : validated.webhookToken;
+          agentUpdate.wakeWebhookLastPingAt = null;
+          agentUpdate.wakeWebhookLastPingOk = null;
+          agentUpdate.wakeWebhookLastPingError = null;
+        }
+        if (validated.webhookUrl === "" || validated.webhookToken === "") {
+          agentUpdate.wakeWebhookEnabled = false;
         }
 
         if (Object.keys(agentUpdate).length > 0) {

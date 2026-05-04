@@ -6,7 +6,9 @@ export type InboxEventType =
   | "MATCH_PROPOSED"
   | "MATCH_CONFIRMED"
   | "BEACON_TRIGGERED"
-  | "FRESHNESS_WARNING";
+  | "FRESHNESS_WARNING"
+  | "PRIVACY_SETTINGS_CHANGED"
+  | "NETWORKING_GOAL_CHANGED";
 
 interface CreateArgs {
   ownerId: string;
@@ -48,27 +50,5 @@ export async function markDismissed(eventIds: string[], agentId: string) {
   return prisma.inboxEvent.updateMany({
     where: { id: { in: eventIds }, agentId },
     data: { dismissedAt: new Date() },
-  });
-}
-
-// Email fallback — events that stayed undelivered past threshold and haven't
-// triggered email yet. Callers apply per-type preference gates via shouldSend.
-export async function getEmailFallbackCandidates(thresholdMs: number) {
-  const cutoff = new Date(Date.now() - thresholdMs);
-  return prisma.inboxEvent.findMany({
-    where: {
-      createdAt: { lte: cutoff },
-      dismissedAt: null,
-      emailFallbackSentAt: null,
-    },
-    orderBy: { createdAt: "asc" },
-  });
-}
-
-export async function markEmailFallbackSent(eventIds: string[]) {
-  if (eventIds.length === 0) return;
-  await prisma.inboxEvent.updateMany({
-    where: { id: { in: eventIds } },
-    data: { emailFallbackSentAt: new Date() },
   });
 }

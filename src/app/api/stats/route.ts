@@ -1,18 +1,44 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publicDemoFilter, publicAgentDemoFilter } from "@/lib/demo/visibility";
+import { getDisplayedNetworkMembers } from "@/lib/network-stats";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 } as const;
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+  const { searchParams } = new URL(req.url);
+  const lite = searchParams.get("lite") === "1";
+
+  const ownerFilter = publicDemoFilter();
+
+  if (lite) {
+    const actualMembers = await prisma.owner.count({
+      where: { onboarded: true, ...ownerFilter },
+    });
+    const totalMembers = getDisplayedNetworkMembers(actualMembers);
+    return NextResponse.json(
+      { totalMembers, actualMembers },
+      { headers: CORS_HEADERS },
+    );
+  }
+
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+  // When demo network is disabled, exclude demo records from analytics
+  // so the numbers reflect real user activity only.
+  const agentFilter = publicAgentDemoFilter();
+  const matchExcludeDemo =
+    Object.keys(agentFilter).length > 0
+      ? { agentA: agentFilter, agentB: agentFilter }
+      : {};
+
   const [
-    totalMembers,
+    actualMembers,
     totalMatches,
     matchesThisWeek,
     activeNegotiations,
@@ -20,27 +46,29 @@ export async function GET() {
     recentMatches,
   ] = await Promise.all([
     // Total onboarded members
-    prisma.owner.count({ where: { onboarded: true } }),
+    prisma.owner.count({ where: { onboarded: true, ...ownerFilter } }),
 
     // Total successful matches
-    prisma.match.count({ where: { status: "MATCHED" } }),
+    prisma.match.count({ where: { status: "MATCHED", ...matchExcludeDemo } }),
 
     // Matches this week
     prisma.match.count({
-      where: { status: "MATCHED", matchedAt: { gte: weekAgo } },
+      where: { status: "MATCHED", matchedAt: { gte: weekAgo }, ...matchExcludeDemo },
     }),
 
     // Active negotiations right now
-    prisma.match.count({ where: { status: "NEGOTIATING" } }),
+    prisma.match.count({ where: { status: "NEGOTIATING", ...matchExcludeDemo } }),
 
     // Top expertise areas across the network
     prisma.agentContext.findMany({
+      where:
+        Object.keys(agentFilter).length > 0 ? { agent: agentFilter } : undefined,
       select: { expertise: true },
     }),
 
     // Recent matched pairs for social proof (last 10)
     prisma.match.findMany({
-      where: { status: "MATCHED", isPublic: true },
+      where: { status: "MATCHED", isPublic: true, ...matchExcludeDemo },
       orderBy: { matchedAt: "desc" },
       take: 5,
       include: {
@@ -79,9 +107,12 @@ export async function GET() {
     },
   }));
 
+  const totalMembers = getDisplayedNetworkMembers(actualMembers);
+
   return NextResponse.json(
     {
       totalMembers,
+      actualMembers,
       totalMatches,
       matchesThisWeek,
       activeNegotiations,
@@ -94,6 +125,7 @@ export async function GET() {
     return NextResponse.json(
       {
         totalMembers: 0,
+        actualMembers: 0,
         totalMatches: 0,
         matchesThisWeek: 0,
         activeNegotiations: 0,

@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { publicAgentDemoFilter } from "@/lib/demo/visibility";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
   const { matchId } = await params;
+  const agentFilter = publicAgentDemoFilter();
   let match;
   try {
-    match = await prisma.match.findUnique({
-      where: { id: matchId },
+    match = await prisma.match.findFirst({
+      where: {
+        id: matchId,
+        isPublic: true,
+        ...(Object.keys(agentFilter).length > 0
+          ? { agentA: agentFilter, agentB: agentFilter }
+          : {}),
+      },
       include: {
         agentA: { include: { context: true } },
         agentB: { include: { context: true } },
@@ -25,7 +33,7 @@ export async function GET(
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  if (!match || !match.isPublic) {
+  if (!match) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 

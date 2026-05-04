@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/db";
-import { generateEmbedding, contextToEmbeddingText } from "@/lib/embeddings";
+import { generateEmbeddingWithUsage, contextToEmbeddingText } from "@/lib/embeddings";
 import { getFreshnessWeight } from "@/lib/services/freshness";
+import {
+  areNetworkingGoalsCompatible,
+  getCompatibleNetworkingGoals,
+  getNetworkingGoalScoreAdjustment,
+} from "@/lib/networking-goal";
+import type { NetworkingGoal } from "@/types/context";
 import {
   SEARCH_CUTOFF_MS,
   SEARCH_BOOST_WINDOW_MS,
@@ -55,10 +61,22 @@ export async function findMatches(
     agentDomains: agent.context.agentDomains,
     collaborationStyle: agent.context.collaborationStyle,
   });
-  const queryEmbedding = await generateEmbedding(embeddingText);
+  const { embedding: queryEmbedding } = await generateEmbeddingWithUsage(embeddingText, {
+    operation: "find_matches",
+    ownerId: agent.ownerId,
+    agentId: agent.id,
+    metadata: {
+      min_similarity: minSimilarity,
+      limit,
+    },
+  });
 
   // Semantic search via pgvector — exclude STALE/INACTIVE agents and liveness cutoff
-  const goalFilter = filters?.networkingGoal ?? null;
+  const seekerGoal = agent.context.networkingGoal as NetworkingGoal;
+  const explicitGoalFilter = (filters?.networkingGoal as NetworkingGoal | undefined) ?? null;
+  const compatibleGoals = explicitGoalFilter
+    ? [explicitGoalFilter]
+    : getCompatibleNetworkingGoals(seekerGoal);
   const livenessCutoff = new Date(Date.now() - SEARCH_CUTOFF_MS);
 
   const results = await prisma.$queryRaw<
@@ -101,15 +119,23 @@ export async function findMatches(
       AND ac.embedding IS NOT NULL
       AND ac.freshness_state NOT IN ('STALE', 'INACTIVE')
       AND a.last_active_at > ${livenessCutoff}
-      AND (${goalFilter}::text IS NULL OR ac.networking_goal = ${goalFilter})
       AND (1 - (ac.embedding <=> ${queryEmbedding}::vector)) > ${minSimilarity}
     ORDER BY similarity DESC
-    LIMIT ${limit * 2}
+    LIMIT ${limit * 4}
   `;
 
   // Apply composite ranking: semantic(70%) + reputation(20%) + freshness(10%) + liveness boost
   const boostCutoff = Date.now() - SEARCH_BOOST_WINDOW_MS;
-  const ranked = results.map((r) => {
+  const ranked = results.flatMap((r) => {
+    const candidateGoal = r.networking_goal as NetworkingGoal;
+    const goalAllowed = explicitGoalFilter
+      ? candidateGoal === explicitGoalFilter
+      : compatibleGoals.includes(candidateGoal);
+
+    if (!goalAllowed || !areNetworkingGoalsCompatible(seekerGoal, candidateGoal)) {
+      return [];
+    }
+
     const semanticScore = Number(r.similarity);
     const reputationNormalized = Number(r.reputation_score) / 100;
     const freshnessWeight = getFreshnessWeight(
@@ -119,14 +145,16 @@ export async function findMatches(
     // Agents active within the last 24h get a small ranking boost
     const lastActive = new Date(r.last_active_at).getTime();
     const livenessBoost = lastActive > boostCutoff ? LIVENESS_BOOST : 0;
+    const goalAdjustment = getNetworkingGoalScoreAdjustment(seekerGoal, candidateGoal);
 
     const finalScore =
       semanticScore * 0.70 +
       reputationNormalized * 0.20 +
       freshnessWeight * 0.10 +
-      livenessBoost;
+      livenessBoost +
+      goalAdjustment;
 
-    return {
+    return [{
       agentId: r.agent_id,
       agentExternalId: r.external_agent_id,
       similarity: semanticScore,
@@ -141,7 +169,7 @@ export async function findMatches(
       ownerProfession: r.owner_profession,
       ownerDomain: r.owner_domain,
       agentSpecialization: r.agent_specialization,
-    };
+    }];
   });
 
   // Sort by final composite score and return top N

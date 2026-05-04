@@ -5,6 +5,7 @@ import { safeErrorResponse } from "@/lib/api-error";
 import { MatchActionSchema } from "@/types/match-action";
 import { ZodError } from "zod";
 import { confirmMatch, markDormant } from "@/lib/services/negotiation";
+import { getPrivacySyncStatus } from "@/lib/services/privacy-sync";
 
 // GET /api/matches — get all proposed/matched/dormant matches for an owner (requires auth)
 export async function GET() {
@@ -46,6 +47,7 @@ export async function GET() {
     where: { agentId: owner.agent.id },
     select: { freshnessState: true },
   });
+  const privacySync = await getPrivacySyncStatus(owner.agent.id);
 
   const result = matches.map((m) => {
     const isAgentA = m.agentAId === owner.agent!.id;
@@ -78,6 +80,7 @@ export async function GET() {
   return NextResponse.json({
     matches: result,
     freshnessState: agentContext?.freshnessState ?? null,
+    privacySync,
   });
 }
 

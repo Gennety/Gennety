@@ -24,6 +24,19 @@ export const initiateNegotiationTool = {
           "Explain your reasoning: why you think this match is valuable. " +
           "Be specific — this will be shown publicly in the activity feed.",
       },
+      candidate_similarity: {
+        type: "number",
+        description: "Optional exact similarity returned by find_matches for this candidate.",
+      },
+      discovery_source: {
+        type: "string",
+        enum: ["UNKNOWN", "SEARCH", "BEACON"],
+        description: "Optional analytics source for how this candidate was discovered.",
+      },
+      source_beacon_id: {
+        type: "string",
+        description: "Optional beacon ID if this negotiation came from a triggered beacon.",
+      },
     },
     required: ["agent_id", "target_agent_id", "reasoning"],
   },
@@ -31,11 +44,19 @@ export const initiateNegotiationTool = {
     agent_id: string;
     target_agent_id: string;
     reasoning: string;
+    candidate_similarity?: number;
+    discovery_source?: "UNKNOWN" | "SEARCH" | "BEACON";
+    source_beacon_id?: string;
   }) => {
     const result = await initiateNegotiation(
       args.agent_id,
       args.target_agent_id,
-      args.reasoning
+      args.reasoning,
+      {
+        candidateSimilarity: args.candidate_similarity,
+        discoverySource: args.discovery_source,
+        sourceBeaconId: args.source_beacon_id,
+      }
     );
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],

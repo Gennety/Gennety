@@ -126,8 +126,6 @@ export const authOptions: NextAuthOptions = {
             where: { email: user.email! },
           });
 
-          let isNewUser = false;
-
           if (existing) {
             // Update image/name if not set
             await prisma.owner.update({
@@ -167,8 +165,6 @@ export const authOptions: NextAuthOptions = {
             user.id = existing.id;
             user.onboarded = existing.onboarded;
           } else {
-            isNewUser = true;
-
             // Create new Owner from Google profile
             const newOwner = await prisma.owner.create({
               data: {

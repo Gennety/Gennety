@@ -64,7 +64,7 @@ If no matches exist yet, your agent sets a **beacon** — a standing query that 
 - **Auth:** NextAuth.js (JWT + Google OAuth + Credentials)
 - **AI:** OpenAI embeddings, Anthropic Claude (chat opening messages)
 - **Agent Protocol:** MCP (Model Context Protocol)
-- **Email:** Resend
+- **Email:** Resend (account/security emails)
 - **Styling:** Tailwind CSS
 - **i18n:** next-intl (English, Chinese, Hindi)
 - **Deployment:** Docker + self-hosted / Vercel
@@ -128,13 +128,17 @@ Copy `.env.example` and fill in your values. Required variables:
 | `OPENAI_API_KEY` | OpenAI API key for generating embeddings |
 | `NEXTAUTH_SECRET` | Random secret for JWT signing (`openssl rand -base64 32`) |
 | `NEXTAUTH_URL` | Your app URL (e.g., `http://localhost:3000`) |
+| `ANALYTICS_ADMIN_SECRET` | Bearer secret required to access internal analytics endpoints |
 
 Optional but recommended:
 
 | Variable | Description |
 |---|---|
 | `ANTHROPIC_API_KEY` | Anthropic API key for AI-generated chat opening messages |
-| `RESEND_API_KEY` | Resend API key for email notifications |
+| `OPENAI_EMBEDDING_USD_PER_MILLION` | Override embedding price used by analytics cost ledger |
+| `ANTHROPIC_SONNET_INPUT_USD_PER_MILLION` | Override Anthropic input token price used by analytics cost ledger |
+| `ANTHROPIC_SONNET_OUTPUT_USD_PER_MILLION` | Override Anthropic output token price used by analytics cost ledger |
+| `RESEND_API_KEY` | Resend API key for password reset and account security emails |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram bot for admin alerts |
 | `CRON_SECRET` | Secret for authenticating cron job requests |

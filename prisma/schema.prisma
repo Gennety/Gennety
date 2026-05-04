@@ -19,6 +19,7 @@ model Owner {
   emailVerified   DateTime? @map("email_verified")
   image           String?
   networkingGoal  String?   @map("networking_goal")
+  countryCode     String?   @map("country_code")
   privacyConsent  Boolean   @default(false) @map("privacy_consent")
   researchConsent Boolean   @default(false) @map("research_consent") // Purpose B — separate GDPR basis
   excludedTopics  String[]  @default([]) @map("excluded_topics")
@@ -28,12 +29,6 @@ model Owner {
   // Demo network — simulated accounts driven by the server-side responder.
   // Filtered out of production analytics and reputation leaderboards.
   isDemo Boolean @default(false) @map("is_demo")
-
-  // Notification preferences
-  notifyAllEmails      Boolean @default(true) @map("notify_all_emails")
-  notifyMatchProposals Boolean @default(true) @map("notify_match_proposals")
-  notifyNewMessages    Boolean @default(true) @map("notify_new_messages")
-  notifyFreshness      Boolean @default(true) @map("notify_freshness")
 
   createdAt      DateTime        @default(now()) @map("created_at")
   agent          Agent?
@@ -98,8 +93,12 @@ model Agent {
   // Wake-up push — when set, Gennety POSTs to webhookUrl with webhookToken
   // on hot events so the agent can call check_in immediately instead of
   // waiting for the next heartbeat.
-  webhookUrl   String? @map("webhook_url")
-  webhookToken String? @map("webhook_token")
+  webhookUrl             String?   @map("webhook_url")
+  webhookToken           String?   @map("webhook_token")
+  wakeWebhookEnabled     Boolean   @default(false) @map("wake_webhook_enabled")
+  wakeWebhookLastPingAt  DateTime? @map("wake_webhook_last_ping_at")
+  wakeWebhookLastPingOk  Boolean?  @map("wake_webhook_last_ping_ok")
+  wakeWebhookLastPingError String? @map("wake_webhook_last_ping_error")
 
   // Reputation fields
   reputationScore            Float @default(40) @map("reputation_score")
@@ -179,6 +178,7 @@ model Beacon {
   agentId      String                       @map("agent_id")
   agent        Agent                        @relation(fields: [agentId], references: [id])
   contextQuery String                       @map("context_query") // what this beacon is waiting for
+  networkingGoalFilter String?              @map("networking_goal_filter")
   embedding    Unsupported("vector(1536)")?
   isActive     Boolean                      @default(true) @map("is_active")
   preservable  Boolean                      @default(true) // paused (true) vs deactivated (false)
@@ -204,6 +204,13 @@ model Match {
   framingForA    String @map("framing_for_a") // how to present to owner A
   framingForB    String @map("framing_for_b") // how to present to owner B
 
+  // V2 analytics fields — used for exact dashboard metrics.
+  matchSimilarity   Float?               @map("match_similarity")
+  discoverySource   MatchDiscoverySource @default(UNKNOWN) @map("discovery_source")
+  sourceBeaconId    String?              @map("source_beacon_id")
+  agentAAcceptedAt  DateTime?            @map("agent_a_accepted_at")
+  agentBAcceptedAt  DateTime?            @map("agent_b_accepted_at")
+
   status       MatchStatus @default(NEGOTIATING)
   confirmedByA Boolean     @default(false) @map("confirmed_by_a")
   confirmedByB Boolean     @default(false) @map("confirmed_by_b")
@@ -228,6 +235,12 @@ enum MatchStatus {
   MATCHED
   DORMANT
   DECLINED
+}
+
+enum MatchDiscoverySource {
+  UNKNOWN
+  SEARCH
+  BEACON
 }
 
 enum FreshnessState {
@@ -260,8 +273,9 @@ model Chat {
   lastNotifiedA DateTime? @map("last_notified_a")
   lastNotifiedB DateTime? @map("last_notified_b")
 
-  messages Message[]
-  reports  Report[]
+  messages       Message[]
+  reports        Report[]
+  adviceSessions AdviceSession[]
 
   @@map("chats")
 }
@@ -272,15 +286,63 @@ enum ChatStatus {
   BLOCKED
 }
 
+enum AdviceSessionStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  DECLINED
+  FAILED
+  CANCELLED
+}
+
+enum MessageKind {
+  HUMAN
+  AGENT_INTRO
+  MODEL_ADVICE_REQUEST
+  MODEL_ADVICE_STATUS
+  MODEL_ADVICE_AGENT
+  MODEL_ADVICE_RESULT
+}
+
 model Message {
   id        String   @id @default(cuid())
   chatId    String   @map("chat_id")
   chat      Chat     @relation(fields: [chatId], references: [id])
   fromOwner String   @map("from_owner") // owner id or "agent_a" / "agent_b" for opening messages
+  kind      MessageKind @default(HUMAN)
+  adviceSessionId String? @map("advice_session_id")
+  adviceSession   AdviceSession? @relation(fields: [adviceSessionId], references: [id], onDelete: SetNull)
   content   String
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([chatId, createdAt])
+  @@index([adviceSessionId])
   @@map("messages")
+}
+
+model AdviceSession {
+  id                 String              @id @default(cuid())
+  chatId             String              @map("chat_id")
+  chat               Chat                @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  requestedByOwnerId String              @map("requested_by_owner_id")
+  responderOwnerId   String?             @map("responder_owner_id")
+  promptKey          String?             @map("prompt_key")
+  promptTitle        String              @map("prompt_title")
+  promptText         String              @map("prompt_text")
+  status             AdviceSessionStatus @default(PENDING)
+  respondedAt        DateTime?           @map("responded_at")
+  startedAt          DateTime?           @map("started_at")
+  completedAt        DateTime?           @map("completed_at")
+  summary            String?             @map("summary")
+  recommendation     String?             @map("recommendation")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  messages Message[]
+
+  @@index([chatId, status])
+  @@index([requestedByOwnerId, status])
+  @@map("advice_sessions")
 }
 
 model NegotiationLog {
@@ -409,37 +471,76 @@ model DemoAgentQuota {
   @@map("demo_agent_quotas")
 }
 
-model EmailNotification {
-  id          String   @id @default(cuid())
-  ownerId     String   @map("owner_id")
-  type        String // MATCH_PROPOSAL | MATCH_CONFIRMED | NEW_MESSAGE | FRESHNESS_WARNING
-  referenceId String   @map("reference_id") // matchId or chatId
-  resendId    String?  @map("resend_id")
-  sentAt      DateTime @default(now()) @map("sent_at")
-
-  @@index([ownerId, type, referenceId])
-  @@index([sentAt])
-  @@map("email_notifications")
-}
-
 // Inbox events — primary delivery channel for agent-visible notifications.
 // Written by Gennety on match/message/freshness events, read by the agent
 // via the check_in MCP tool, acknowledged via ack_inbox after delivery to owner.
-// Email is a fallback when an event stays undelivered past a threshold.
 model InboxEvent {
-  id                  String    @id @default(cuid())
-  ownerId             String    @map("owner_id")
-  agentId             String    @map("agent_id") // internal Agent.id
-  type                String // NEW_MESSAGE | MATCH_PROPOSED | MATCH_CONFIRMED | BEACON_TRIGGERED | FRESHNESS_WARNING
-  referenceId         String    @map("reference_id") // matchId | beaconId | agentId
-  payload             Json // self-contained fields for the agent
-  createdAt           DateTime  @default(now()) @map("created_at")
-  deliveredAt         DateTime? @map("delivered_at") // first time check_in returned this event
-  dismissedAt         DateTime? @map("dismissed_at") // agent acknowledged delivery to owner
-  emailFallbackSentAt DateTime? @map("email_fallback_sent_at")
+  id          String    @id @default(cuid())
+  ownerId     String    @map("owner_id")
+  agentId     String    @map("agent_id") // internal Agent.id
+  type        String // NEW_MESSAGE | MATCH_PROPOSED | MATCH_CONFIRMED | BEACON_TRIGGERED | FRESHNESS_WARNING
+  referenceId String    @map("reference_id") // matchId | beaconId | agentId
+  payload     Json // self-contained fields for the agent
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deliveredAt DateTime? @map("delivered_at") // first time check_in returned this event
+  dismissedAt DateTime? @map("dismissed_at") // agent acknowledged delivery to owner
 
   @@index([agentId, dismissedAt])
   @@index([ownerId, type, referenceId])
   @@index([createdAt])
   @@map("inbox_events")
+}
+
+// Append-only analytics lifecycle ledger.
+// Used for precise admin dashboard metrics without scanning business tables heuristically.
+model AnalyticsEvent {
+  id              String   @id @default(cuid())
+  type            String
+  ownerId         String?  @map("owner_id")
+  agentId         String?  @map("agent_id")
+  matchId         String?  @map("match_id")
+  beaconId        String?  @map("beacon_id")
+  chatId          String?  @map("chat_id")
+  adviceSessionId String?  @map("advice_session_id")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([type, createdAt])
+  @@index([ownerId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([matchId, createdAt])
+  @@index([beaconId, createdAt])
+  @@index([chatId, createdAt])
+  @@index([adviceSessionId, createdAt])
+  @@map("analytics_events")
+}
+
+// Precise compute ledger for production and demo cost tracking.
+model ComputeUsage {
+  id              String   @id @default(cuid())
+  category        String
+  provider        String
+  model           String
+  operation       String
+  ownerId         String?  @map("owner_id")
+  agentId         String?  @map("agent_id")
+  matchId         String?  @map("match_id")
+  beaconId        String?  @map("beacon_id")
+  chatId          String?  @map("chat_id")
+  adviceSessionId String?  @map("advice_session_id")
+  tokensInput     Int      @default(0) @map("tokens_input")
+  tokensOutput    Int      @default(0) @map("tokens_output")
+  costUsd         Float    @default(0) @map("cost_usd")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([category, createdAt])
+  @@index([operation, createdAt])
+  @@index([ownerId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([matchId, createdAt])
+  @@index([beaconId, createdAt])
+  @@index([chatId, createdAt])
+  @@index([adviceSessionId, createdAt])
+  @@map("compute_usage")
 }

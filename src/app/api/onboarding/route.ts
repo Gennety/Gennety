@@ -5,24 +5,33 @@ import { safeErrorResponse } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
 import { OnboardingSchema, PLATFORM_FILE_NAMES, type AgentPlatform } from "@/types/onboarding";
 import { getConnectionInstructions, buildSetupPrompt } from "@/lib/onboarding/connection-instructions";
+import { loadMessages } from "@/i18n/messages";
+import { resolveLocale } from "@/i18n/config";
+import { getCountryName } from "@/lib/countries";
 import { ZodError } from "zod";
 import crypto from "crypto";
 import { sendTelegramNotification } from "@/lib/services/telegram";
 
 export async function POST(request: NextRequest) {
   try {
+    const locale = resolveLocale({
+      cookie: request.headers.get("cookie"),
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+    const messages = await loadMessages(locale);
+
     const rateLimited = rateLimit(request, { maxRequests: 5, windowMs: 60_000, keyPrefix: "onboarding" });
     if (rateLimited) return rateLimited;
 
     const auth = await getAuthenticatedOwner();
     if (!auth) {
-      return NextResponse.json({ error: "Unauthorized — please log in first" }, { status: 401 });
+      return NextResponse.json({ error: messages.onboarding.errors.unauthorized }, { status: 401 });
     }
     let body;
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return NextResponse.json({ error: messages.onboarding.errors.invalidBody }, { status: 400 });
     }
 
     let validated;
@@ -30,13 +39,13 @@ export async function POST(request: NextRequest) {
       validated = OnboardingSchema.parse(body);
     } catch (e) {
       if (e instanceof ZodError) {
-        const firstError = e.issues[0]?.message ?? "Invalid input";
-        return NextResponse.json({ error: firstError }, { status: 400 });
+        return NextResponse.json({ error: messages.onboarding.errors.invalidInput }, { status: 400 });
       }
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return NextResponse.json({ error: messages.onboarding.errors.invalidInput }, { status: 400 });
     }
 
-    const { agentPlatform, networkingGoal, privacyConsent, researchConsent, excludedTopics } = validated;
+    const { agentPlatform, networkingGoal, countryCode, privacyConsent, researchConsent, excludedTopics } = validated;
+    const countryName = getCountryName(countryCode, locale) ?? countryCode;
 
     // Update existing owner with onboarding data (retry on transient DB drops)
     const { owner, agent } = await withDbRetry(async () => {
@@ -45,6 +54,7 @@ export async function POST(request: NextRequest) {
         data: {
           agentPlatform,
           networkingGoal,
+          countryCode,
           privacyConsent,
           researchConsent: researchConsent ?? false,
           excludedTopics: excludedTopics ?? [],
@@ -110,6 +120,7 @@ export async function POST(request: NextRequest) {
       `<b>Choices</b>`,
       `Platform: ${agentPlatform}`,
       `Goal: ${networkingGoal}`,
+      `Country: ${countryName} (${countryCode})`,
       `Privacy consent: ${privacyConsent ? "Yes" : "No"}`,
       `Research consent: ${researchConsent ? "Yes" : "No"}`,
       `Excluded topics: ${excludedTopics?.length ? excludedTopics.join(", ") : "none"}`,
@@ -127,11 +138,16 @@ export async function POST(request: NextRequest) {
     const fileName = PLATFORM_FILE_NAMES[agentPlatform as AgentPlatform] ?? PLATFORM_FILE_NAMES.open_claw;
 
     // Generate connection instructions + one-line setup prompt
-    const connectionInstructions = getConnectionInstructions(agent.agentId, agent.apiKey, agentPlatform as AgentPlatform);
+    const connectionInstructions = getConnectionInstructions(
+      agent.agentId,
+      agent.apiKey,
+      agentPlatform as AgentPlatform,
+      locale
+    );
     const baseUrl = request.headers.get("x-forwarded-proto") && request.headers.get("host")
       ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("host")}`
       : process.env.NEXTAUTH_URL ?? "https://gennety.com";
-    const setupPrompt = buildSetupPrompt(agent.agentId, agent.apiKey, baseUrl);
+    const setupPrompt = buildSetupPrompt(agent.agentId, agent.apiKey, baseUrl, locale);
 
     return NextResponse.json({
       owner: {
@@ -139,6 +155,7 @@ export async function POST(request: NextRequest) {
         email: owner.email,
         name: owner.name,
         networkingGoal: owner.networkingGoal,
+        countryCode: owner.countryCode,
         agentPlatform,
       },
       agent: {
@@ -152,6 +169,11 @@ export async function POST(request: NextRequest) {
       connectionInstructions,
     });
   } catch (error) {
-    return safeErrorResponse(error, "Failed to complete onboarding");
+    const locale = resolveLocale({
+      cookie: request.headers.get("cookie"),
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+    const messages = await loadMessages(locale);
+    return safeErrorResponse(error, messages.onboarding.errors.completeFailed);
   }
 }

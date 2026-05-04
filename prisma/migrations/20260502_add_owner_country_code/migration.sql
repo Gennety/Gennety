@@ -1,0 +1,2 @@
+ALTER TABLE "owners"
+ADD COLUMN IF NOT EXISTS "country_code" TEXT;

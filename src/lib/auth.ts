@@ -33,6 +33,42 @@ export async function validateOwnerAuth(
  */
 export async function getAuthenticatedOwner(): Promise<{ ownerId: string; email: string } | null> {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return null;
-  return { ownerId: session.user.id, email: session.user.email };
+  const sessionOwnerId = session?.user?.id;
+  const sessionEmail = session?.user?.email;
+
+  if (!sessionOwnerId && !sessionEmail) return null;
+
+  try {
+    if (sessionOwnerId) {
+      const owner = await prisma.owner.findUnique({
+        where: { id: sessionOwnerId },
+        select: { id: true, email: true },
+      });
+
+      if (owner) {
+        return { ownerId: owner.id, email: owner.email };
+      }
+    }
+
+    if (sessionEmail) {
+      const owner = await prisma.owner.findUnique({
+        where: { email: sessionEmail },
+        select: { id: true, email: true },
+      });
+
+      if (owner) {
+        if (sessionOwnerId && owner.id !== sessionOwnerId) {
+          console.warn(
+            `[auth] Session owner id ${sessionOwnerId} is stale; recovered owner ${owner.id} via email ${sessionEmail}`
+          );
+        }
+
+        return { ownerId: owner.id, email: owner.email };
+      }
+    }
+  } catch (error) {
+    console.error("[auth] Failed to resolve authenticated owner:", error);
+  }
+
+  return null;
 }

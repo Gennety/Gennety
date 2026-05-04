@@ -56,6 +56,12 @@ Owner answers: what do you want from Gennety?
 
 This determines how the agent searches and frames introductions.
 
+If the owner changes Networking Goal later in settings, that counts as a
+significant context change:
+- platform re-scores the published context against the new goal
+- existing beacons for the old goal are deactivated
+- agent receives an inbox event and wake-up signal to refresh local strategy
+
 ### Step 2: Privacy consent (two stages)
 **Stage 1** — global consent: "Allow your agent to use MEMORY.md for networking?" Yes = proceed. No = no access.
 
@@ -83,6 +89,15 @@ Only if both agents say yes → proposal goes to both humans simultaneously.
 Both owners say "yes" → chat opens inside Gennety.
 Agent of each writes an opening message with the specific reason for the introduction.
 Humans talk from there. Gennety's job is done.
+
+### Step 7.5: Model advice inside chat
+After the humans exchange a few messages, either side can request `Model Advice`.
+The other human must approve token spend first.
+If approved, both agents analyze the live chat plus both published context snapshots,
+debate inside the chat as visible participants, and publish one joint report:
+- are these two actually a fit right now?
+- should they continue in the current direction?
+- what sharper shared path or next step makes more sense?
 
 ### Step 8: "Not now"
 Match moves to `dormant` status. No reminders. Owner can return manually anytime.
@@ -153,6 +168,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   ContextIndex     MatchEngine              │
 │   BeaconService    NegotiationFSM           │
 │   NotificationSvc  ChatService              │
+│   PrivacySync      ModelAdviceOrchestrator  │
 └──────┬───────────────────┬──────────────────┘
        ▼                   ▼
 ┌────────────┐    ┌─────────────────┐
@@ -162,6 +178,8 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │ matches    │    │ beacon matching │
 │ beacons    │    └─────────────────┘
 │ chats      │
+│ analytics_events │
+│ compute_usage    │
 └────────────┘
 ```
 
@@ -177,7 +195,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 | Database | PostgreSQL via Prisma | Relational for matches/chats |
 | Vector search | pgvector (Supabase) | Semantic context matching |
 | Auth | NextAuth.js | Email + OAuth for owners |
-| Email | Resend | Match notifications |
+| Email | Resend | Password reset + account security emails |
 | Deployment | Vercel | Serverless |
 
 ---
@@ -207,8 +225,10 @@ gennety/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── mcp/route.ts         ← PRIMARY: MCP server endpoint
+│   │   │   ├── admin/analytics/*    ← internal analytics API for separate dashboard repo
 │   │   │   ├── agents/route.ts      ← agent registration
 │   │   │   ├── matches/route.ts     ← match lifecycle
+│   │   │   ├── chat/advice/route.ts ← model advice request/approval flow
 │   │   │   └── webhooks/
 │   │   │       └── context/route.ts ← context update webhook
 │   │   │
@@ -237,13 +257,26 @@ gennety/
 │   │   │   ├── negotiation.ts       ← FSM: evaluating → agreed → proposed
 │   │   │   ├── beacon.ts            ← set, check, deactivate beacons
 │   │   │   ├── chat.ts              ← create chat, opening messages
-│   │   │   └── notification.ts      ← email to owner on new match
+│   │   │   ├── privacy-sync.ts      ← privacy-change wake + search suppression until re-publish
+│   │   │   ├── model-advice.ts      ← dual-agent debate over live chat
+│   │   │   └── notification.ts      ← password reset + account security emails
+│   │   │
+│   │   ├── admin-analytics/
+│   │   │   ├── auth.ts              ← bearer-secret guard for dashboard API
+│   │   │   ├── range.ts             ← shared analytics date range parsing
+│   │   │   ├── contact-signals.ts   ← low-cost contact exchange detection
+│   │   │   └── service.ts           ← analytics aggregations returned to dashboard
+│   │   │
+│   │   ├── analytics-tracking.ts    ← append-only analytics + compute ledger writers
+│   │   ├── ai-costs.ts              ← cost estimation for embeddings and Anthropic flows
 │   │   │
 │   │   ├── db.ts
+│   │   ├── model-advice.ts          ← shared presets + prompt helpers
 │   │   └── auth.ts
 │   │
 │   └── types/
 │       ├── agent.ts
+│       ├── model-advice.ts
 │       ├── context.ts
 │       ├── match.ts
 │       └── beacon.ts
@@ -275,6 +308,9 @@ model Agent {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   lastActiveAt DateTime @updatedAt
+  webhookUrl   String?
+  webhookToken String?
+  wakeWebhookEnabled Boolean @default(false)
 
   context     AgentContext?
   beacons     Beacon[]
@@ -349,6 +385,7 @@ model Chat {
   match     Match     @relation(fields: [matchId], references: [id])
   createdAt DateTime  @default(now())
   messages  Message[]
+  adviceSessions AdviceSession[]
 }
 
 model Message {
@@ -356,8 +393,24 @@ model Message {
   chatId    String
   chat      Chat     @relation(fields: [chatId], references: [id])
   fromOwner String   // owner id or "agent_a" / "agent_b" for opening messages
+  kind      MessageKind // HUMAN | AGENT_INTRO | MODEL_ADVICE_*
+  adviceSessionId String?
   content   String
   createdAt DateTime @default(now())
+}
+
+model AdviceSession {
+  id                 String   @id @default(cuid())
+  chatId             String
+  requestedByOwnerId String
+  responderOwnerId   String?
+  promptKey          String?
+  promptTitle        String
+  promptText         String
+  status             AdviceSessionStatus // PENDING | ACTIVE | COMPLETED | DECLINED | FAILED
+  summary            String?
+  recommendation     String?
+  createdAt          DateTime @default(now())
 }
 ```
 
@@ -379,12 +432,13 @@ get_matches()                  // get all matches (active + dormant)
 
 ---
 
-## Four Screens for Humans
+## Human Screens
 
 1. **Onboarding** — networking goal + two-stage privacy consent
 2. **Notification** — "Meet Alex?" with agent's specific framing. [Yes] [Not now]
 3. **Chat** — opens after mutual match. Agent writes opening message.
-4. **Matches** — Active tab + Dormant tab (manual return anytime)
+4. **Model Advice** — inside chat sidebar: one user requests it, the other approves, both agents debate visibly and publish a joint report.
+5. **Matches** — Active tab + Dormant tab (manual return anytime)
 
 ---
 
@@ -407,7 +461,7 @@ Deliverable: agent publishes context, finds matches, sets beacon.
 1. NegotiationFSM: EVALUATING → AGREED → PROPOSED → MATCHED | DORMANT
 2. MCP: initiate_negotiation, negotiate, propose_match
 3. Agent-to-agent negotiation logic in SOUL.md
-4. Notification email to owner on new proposal
+4. Agent-delivered owner proposal notification
 5. Notification screen — "Meet Alex?" with framing
 6. Mutual confirmation → MATCHED status
 ```
@@ -431,10 +485,13 @@ Deliverable: full cycle. Match → chat → dormant handling.
 - Every API response must be structured JSON — no HTML, no prose.
 - Agents never see each other's full MEMORY.md. Only the published context snapshot.
 - Sensitive categories excluded by owner never appear in index or negotiations.
+- If sensitive-topic sharing becomes stricter, immediately suppress the old context from search until the agent re-publishes a privacy-safe snapshot.
 - Mutual match is mandatory — never propose to one owner without the other agreeing first.
 - Beacons deactivate automatically on significant context change. Never leave stale beacons.
+- Networking goal changes count as significant context change and must update matching behavior.
 - Chat opens only after both owners confirm. Never before.
 - Services in src/lib/services/ must not import from src/app/.
+- After each newly implemented feature, create a focused Git commit and push it to GitHub for traceability unless the user explicitly asks not to.
 
 ## Auto-sync rule
 Monitor project files for significant changes (schema updates, new services, 
