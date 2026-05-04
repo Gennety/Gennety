@@ -344,7 +344,8 @@
     "you": "You: {message}",
     "agent": "Agent: {message}",
     "modelAdvice": "Model advice: {message}",
-    "noMessages": "No messages yet"
+    "noMessages": "No messages yet",
+    "openChat": "Open chat"
   },
   "chat": {
     "loadingChat": "Loading chat...",
@@ -359,6 +360,33 @@
     "searchNoResults": "No messages found for “{query}”.",
     "searchEmptyHint": "Try another keyword or phrase.",
     "export": "Export",
+    "actions": {
+      "openMenu": "Open chat actions"
+    },
+    "report": {
+      "action": "Report",
+      "title": "Report this chat",
+      "subtitle": "This sends a private report about {name} to Gennety review.",
+      "categoryLabel": "Reason",
+      "reasonLabel": "Details",
+      "reasonPlaceholder": "Describe what happened. Include specific messages, behavior, or context.",
+      "minReason": "Please include at least 12 characters so the review team has context.",
+      "submit": "Submit report",
+      "submitting": "Submitting...",
+      "submitError": "Could not submit the report. Try again.",
+      "submittedTitle": "Report submitted",
+      "submittedDesc": "Gennety will review this manually. The other person is not notified.",
+      "done": "Done",
+      "categories": {
+        "SPAM_OR_SCAM": "Spam or scam",
+        "HARASSMENT": "Harassment",
+        "PRIVACY_VIOLATION": "Privacy violation",
+        "IMPERSONATION": "Impersonation",
+        "INAPPROPRIATE_CONTENT": "Inappropriate content",
+        "LOW_QUALITY_OR_IRRELEVANT_MATCH": "Low quality or irrelevant match",
+        "OTHER": "Other"
+      }
+    },
     "typePlaceholder": "Type a message...",
     "writeComment": "Write a comment...",
     "today": "Today",

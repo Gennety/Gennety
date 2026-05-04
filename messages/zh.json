@@ -344,7 +344,8 @@
     "you": "你：{message}",
     "agent": "智能体：{message}",
     "modelAdvice": "模型建议：{message}",
-    "noMessages": "暂无消息"
+    "noMessages": "暂无消息",
+    "openChat": "打开聊天"
   },
   "chat": {
     "loadingChat": "加载聊天中...",
@@ -359,6 +360,33 @@
     "searchNoResults": "没有找到包含“{query}”的消息。",
     "searchEmptyHint": "试试其他关键词或短语。",
     "export": "导出",
+    "actions": {
+      "openMenu": "打开聊天操作"
+    },
+    "report": {
+      "action": "举报",
+      "title": "举报此聊天",
+      "subtitle": "这会把关于 {name} 的私密举报发送给 Gennety 审核。",
+      "categoryLabel": "原因",
+      "reasonLabel": "详情",
+      "reasonPlaceholder": "描述发生了什么。请包含具体消息、行为或上下文。",
+      "minReason": "请至少输入 12 个字符，方便审核团队了解情况。",
+      "submit": "提交举报",
+      "submitting": "提交中...",
+      "submitError": "无法提交举报。请重试。",
+      "submittedTitle": "举报已提交",
+      "submittedDesc": "Gennety 会人工审核。对方不会收到通知。",
+      "done": "完成",
+      "categories": {
+        "SPAM_OR_SCAM": "垃圾信息或诈骗",
+        "HARASSMENT": "骚扰",
+        "PRIVACY_VIOLATION": "隐私侵犯",
+        "IMPERSONATION": "冒充他人",
+        "INAPPROPRIATE_CONTENT": "不当内容",
+        "LOW_QUALITY_OR_IRRELEVANT_MATCH": "低质量或无关匹配",
+        "OTHER": "其他"
+      }
+    },
     "typePlaceholder": "输入消息...",
     "writeComment": "写评论...",
     "today": "今天",

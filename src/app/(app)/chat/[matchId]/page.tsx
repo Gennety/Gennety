@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
+import { ChatReportDialog } from "@/components/chat-report-dialog";
 import { useUnread } from "@/contexts/unread-context";
 import { useTranslations } from "next-intl";
 import { MODEL_ADVICE_PRESETS } from "@/lib/model-advice";
@@ -109,6 +110,43 @@ function ExportIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
+function MoreIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="10" cy="4" r="1" />
+      <circle cx="10" cy="10" r="1" />
+      <circle cx="10" cy="16" r="1" />
+    </svg>
+  );
+}
+
+function FlagIcon({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M5 17V4" />
+      <path d="M5 4h9l-1.4 3L14 10H5" />
+    </svg>
+  );
+}
+
 function ChevronIcon({
   className = "w-4 h-4",
   open = false,
@@ -207,11 +245,14 @@ export default function ChatPage() {
   const [isAdvicePanelOpen, setIsAdvicePanelOpen] = useState(false);
   const [dismissedAdviceTipKey, setDismissedAdviceTipKey] = useState<string | null>(null);
   const [isMatchReasonDismissed, setIsMatchReasonDismissed] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const deferredSearchQuery = useDeferredValue(searchQuery.trim());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdsRef = useRef<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const autosize = useCallback(() => {
     const el = textareaRef.current;
@@ -330,6 +371,22 @@ export default function ChatPage() {
 
     return () => desktopMedia.removeEventListener("change", syncSidebarSlot);
   }, []);
+
+  useEffect(() => {
+    if (!isActionsMenuOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (
+        actionsMenuRef.current &&
+        !actionsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsActionsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isActionsMenuOpen]);
 
   const otherPerson = useMemo(() => {
     if (!chat || !ownerId) return null;
@@ -734,14 +791,43 @@ export default function ChatPage() {
                   {t("chat.searchMatches", { count: filteredMessages.length })}
                 </span>
               )}
-              <button
-                type="button"
-                onClick={handleExport}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:border-white/20 hover:bg-white/8"
-              >
-                <ExportIcon />
-                <span>{t("chat.export")}</span>
-              </button>
+              <div ref={actionsMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsActionsMenuOpen((current) => !current)}
+                  aria-label={t("chat.actions.openMenu")}
+                  aria-expanded={isActionsMenuOpen}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition-colors hover:border-white/20 hover:bg-white/8"
+                >
+                  <MoreIcon />
+                </button>
+                {isActionsMenuOpen && (
+                  <div className="absolute right-0 top-12 z-30 w-44 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/98 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        handleExport();
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/8 hover:text-white"
+                    >
+                      <ExportIcon />
+                      <span>{t("chat.export")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        setIsReportDialogOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-red-100 transition-colors hover:bg-red-500/10"
+                    >
+                      <FlagIcon />
+                      <span>{t("chat.report.action")}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -989,6 +1075,12 @@ export default function ChatPage() {
       {sidebarSlot
         ? createPortal(<ModelAdvicePanel {...modelAdvicePanelProps} />, sidebarSlot)
         : null}
+      <ChatReportDialog
+        open={isReportDialogOpen}
+        chatId={chat.chatId}
+        targetName={otherPerson.name}
+        onClose={() => setIsReportDialogOpen(false)}
+      />
     </div>
   );
 }
@@ -1195,7 +1287,7 @@ function ModelAdviceChatNote({
         type="button"
         onClick={onDismiss}
         aria-label={dismissLabel}
-        className="absolute right-2 top-2 p-1 text-neutral-500/70 transition-colors hover:text-white"
+        className="absolute right-1 top-1 flex h-9 w-9 items-center justify-center rounded-full text-neutral-500/70 transition-colors hover:text-white"
       >
         <CloseIcon className="w-3.5 h-3.5" />
       </button>

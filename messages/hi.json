@@ -344,7 +344,8 @@
     "you": "आप: {message}",
     "agent": "एजेंट: {message}",
     "modelAdvice": "मॉडल सलाह: {message}",
-    "noMessages": "अभी कोई संदेश नहीं"
+    "noMessages": "अभी कोई संदेश नहीं",
+    "openChat": "चैट खोलें"
   },
   "chat": {
     "loadingChat": "चैट लोड हो रही है...",
@@ -359,6 +360,33 @@
     "searchNoResults": "“{query}” के लिए कोई संदेश नहीं मिला।",
     "searchEmptyHint": "कोई दूसरा शब्द या वाक्यांश आज़माएँ।",
     "export": "एक्सपोर्ट",
+    "actions": {
+      "openMenu": "चैट विकल्प खोलें"
+    },
+    "report": {
+      "action": "रिपोर्ट करें",
+      "title": "इस चैट को रिपोर्ट करें",
+      "subtitle": "यह {name} के बारे में निजी रिपोर्ट Gennety समीक्षा को भेजेगा।",
+      "categoryLabel": "कारण",
+      "reasonLabel": "विवरण",
+      "reasonPlaceholder": "बताएँ क्या हुआ। खास संदेश, व्यवहार या संदर्भ शामिल करें।",
+      "minReason": "कृपया कम से कम 12 अक्षर लिखें ताकि समीक्षा टीम के पास संदर्भ हो।",
+      "submit": "रिपोर्ट भेजें",
+      "submitting": "भेजा जा रहा है...",
+      "submitError": "रिपोर्ट भेजी नहीं जा सकी। फिर कोशिश करें।",
+      "submittedTitle": "रिपोर्ट भेज दी गई",
+      "submittedDesc": "Gennety इसे मैन्युअली समीक्षा करेगा। दूसरे व्यक्ति को सूचना नहीं दी जाएगी।",
+      "done": "पूर्ण",
+      "categories": {
+        "SPAM_OR_SCAM": "स्पैम या स्कैम",
+        "HARASSMENT": "उत्पीड़न",
+        "PRIVACY_VIOLATION": "प्राइवेसी उल्लंघन",
+        "IMPERSONATION": "किसी और की पहचान बनाना",
+        "INAPPROPRIATE_CONTENT": "अनुचित सामग्री",
+        "LOW_QUALITY_OR_IRRELEVANT_MATCH": "कम गुणवत्ता या असंबंधित मैच",
+        "OTHER": "अन्य"
+      }
+    },
     "typePlaceholder": "संदेश लिखें...",
     "writeComment": "टिप्पणी लिखें...",
     "today": "आज",
