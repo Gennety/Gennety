@@ -107,8 +107,6 @@ async function teardown() {
     console.log(`  Deleted ${blkDel.count} blocks`);
     const repDel2 = await tx.report.deleteMany({ where: { reporterId: { in: ownerIds } } });
     console.log(`  Deleted ${repDel2.count} personal reports`);
-    const emailDel = await tx.emailNotification.deleteMany({ where: { ownerId: { in: ownerIds } } });
-    console.log(`  Deleted ${emailDel.count} email notifications`);
     const accDel = await tx.account.deleteMany({ where: { userId: { in: ownerIds } } });
     console.log(`  Deleted ${accDel.count} OAuth accounts`);
     const ownDel = await tx.owner.deleteMany({ where: { id: { in: ownerIds } } });
