@@ -11,7 +11,7 @@ Important context:
 - The dashboard is a separate repository and a separate deployment.
 - It is for one private operator only.
 - Backend analytics endpoints already exist in the main Gennety repo under `/api/admin/analytics/*`.
-- Authentication to that backend must be server-to-server with `Authorization: Bearer ${888G888}`.
+- Authentication to that backend must be server-to-server with `Authorization: Bearer ${ANALYTICS_ADMIN_SECRET}`.
 - Do not expose that secret in browser code.
 - The dashboard should fetch backend data in server components, route handlers, or other server-only utilities.
 
