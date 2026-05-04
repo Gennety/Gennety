@@ -22,7 +22,20 @@ const appPrefixes = ["/home", "/matches", "/profile", "/activity", "/notify", "/
 const appExact = ["/login", "/forgot-password", "/reset-password"];
 
 // Public API routes — no auth required
-const publicApiPrefixes = ["/api/auth", "/api/feed", "/api/mcp", "/api/soul", "/api/track", "/api/oauth", "/api/.well-known", "/api/a2a", "/api/cron", "/api/stats", "/api/locale"];
+const publicApiPrefixes = [
+  "/api/auth",
+  "/api/feed",
+  "/api/mcp",
+  "/api/soul",
+  "/api/track",
+  "/api/oauth",
+  "/api/.well-known",
+  "/api/a2a",
+  "/api/admin/analytics",
+  "/api/cron",
+  "/api/stats",
+  "/api/locale",
+];
 
 function isAppRoute(pathname: string) {
   return (
@@ -53,17 +66,23 @@ const sessionCookieName = useSecureCookies
   ? "__Secure-next-auth.session-token"
   : "next-auth.session-token";
 
+function isLocalDevHost(host: string) {
+  const hostname = host.split(":")[0];
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") ?? "";
+  const isLocalDev = isLocalDevHost(host);
 
   // --- Subdomain routing (only in production when APP_HOST is set) ---
-  if (APP_HOST && host !== APP_HOST && isAppRoute(pathname)) {
+  if (APP_HOST && !isLocalDev && host !== APP_HOST && isAppRoute(pathname)) {
     // Someone hit gennety.com/login or gennety.com/matches → redirect to app subdomain
     return NextResponse.redirect(new URL(pathname + request.nextUrl.search, APP_URL));
   }
 
-  if (APP_HOST && host === APP_HOST && isLandingRoute(pathname)) {
+  if (APP_HOST && !isLocalDev && host === APP_HOST && isLandingRoute(pathname)) {
     // Someone hit app.gennety.com/ or app.gennety.com/feed → redirect to landing
     return NextResponse.redirect(new URL(pathname + request.nextUrl.search, LANDING_URL));
   }
