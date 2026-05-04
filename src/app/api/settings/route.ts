@@ -5,6 +5,7 @@ import { safeErrorResponse } from "@/lib/api-error";
 import { rateLimit } from "@/lib/rate-limit";
 import { getPrivacySyncStatus, syncPrivacyTopicsForAgent } from "@/lib/services/privacy-sync";
 import { syncNetworkingGoalForAgent } from "@/lib/services/networking-goal-sync";
+import { setAgentSearchPaused } from "@/lib/services/agent-search";
 import { SettingsUpdateSchema } from "@/types/settings";
 import { getWakeWebhookUrlError } from "@/lib/wake-webhook";
 import { ZodError } from "zod";
@@ -33,7 +34,7 @@ export async function GET() {
 
     return NextResponse.json({
       // P0
-      agentActive: owner.agent?.isActive ?? false,
+      agentActive: owner.agent ? owner.agent.isActive && !owner.agent.searchPaused : false,
       excludedTopics: owner.excludedTopics,
       researchConsent: owner.researchConsent,
       hasPassword: !!owner.passwordHash,
@@ -195,7 +196,6 @@ export async function PATCH(request: NextRequest) {
         }
 
         const agentUpdate: Record<string, unknown> = {};
-        if (validated.agentActive !== undefined) agentUpdate.isActive = validated.agentActive;
         if (validated.wakeWebhookEnabled !== undefined) {
           agentUpdate.wakeWebhookEnabled = validated.wakeWebhookEnabled;
         }
@@ -222,16 +222,11 @@ export async function PATCH(request: NextRequest) {
           });
         }
 
-        // Pause/resume beacons only on active-toggle
-        if (validated.agentActive === false) {
-          await prisma.beacon.updateMany({
-            where: { agentId: agent.id, isActive: true },
-            data: { isActive: false, preservable: true },
-          });
-        } else if (validated.agentActive === true) {
-          await prisma.beacon.updateMany({
-            where: { agentId: agent.id, isActive: false, preservable: true },
-            data: { isActive: true },
+        if (validated.agentActive !== undefined) {
+          await setAgentSearchPaused({
+            agentInternalId: agent.id,
+            paused: !validated.agentActive,
+            source: "settings",
           });
         }
       }

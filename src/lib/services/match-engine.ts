@@ -41,6 +41,9 @@ export async function findMatches(
 
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
   if (!agent.context) throw new Error(`Agent has no published context: ${agentId}`);
+  if (agent.searchPaused) {
+    throw new Error("Match search is paused by the owner. Resume search before calling find_matches.");
+  }
 
   const minSimilarity = filters?.minSimilarity ?? 0.7;
   const limit = filters?.limit ?? 10;
@@ -116,6 +119,7 @@ export async function findMatches(
     JOIN agents a ON a.id = ac.agent_id
     WHERE ac.agent_id != ${agent.id}
       AND a.is_active = true
+      AND a.search_paused = false
       AND ac.embedding IS NOT NULL
       AND ac.freshness_state NOT IN ('STALE', 'INACTIVE')
       AND a.last_active_at > ${livenessCutoff}

@@ -8,7 +8,9 @@ export type InboxEventType =
   | "BEACON_TRIGGERED"
   | "FRESHNESS_WARNING"
   | "PRIVACY_SETTINGS_CHANGED"
-  | "NETWORKING_GOAL_CHANGED";
+  | "NETWORKING_GOAL_CHANGED"
+  | "AGENT_SEARCH_PAUSED"
+  | "AGENT_SEARCH_RESUMED";
 
 interface CreateArgs {
   ownerId: string;

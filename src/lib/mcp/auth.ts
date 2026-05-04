@@ -17,7 +17,7 @@ export async function authenticateAgent(apiKey: string | null) {
     const data: { lastActiveAt: Date; isActive?: boolean } = {
       lastActiveAt: new Date(),
     };
-    if (!agent.isActive) data.isActive = true;
+    if (!agent.isActive && !agent.searchPaused) data.isActive = true;
 
     return prisma.agent.update({
       where: { id: agent.id },
@@ -38,7 +38,7 @@ export async function authenticateAgent(apiKey: string | null) {
   const data: { lastActiveAt: Date; isActive?: boolean } = {
     lastActiveAt: new Date(),
   };
-  if (!agent.isActive) {
+  if (!agent.isActive && !agent.searchPaused) {
     data.isActive = true;
   }
 

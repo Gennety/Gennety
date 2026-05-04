@@ -42,6 +42,9 @@ export async function initiateNegotiation(
   });
   if (!agentA) throw new Error(`Agent not found: ${initiatorAgentId}`);
   if (!agentA.context) throw new Error(`Agent has no context: ${initiatorAgentId}`);
+  if (agentA.searchPaused) {
+    throw new Error("Cannot initiate negotiation: initiator search is paused by the owner.");
+  }
 
   const agentB = await prisma.agent.findUnique({
     where: { agentId: targetAgentId },
@@ -49,6 +52,9 @@ export async function initiateNegotiation(
   });
   if (!agentB) throw new Error(`Agent not found: ${targetAgentId}`);
   if (!agentB.context) throw new Error(`Agent has no context: ${targetAgentId}`);
+  if (agentB.searchPaused) {
+    throw new Error("Cannot initiate negotiation: target agent search is paused by the owner.");
+  }
   if (
     !areNetworkingGoalsCompatible(
       agentA.context.networkingGoal as NetworkingGoal,
@@ -326,6 +332,9 @@ export async function proposeMatch(matchId: string) {
   if (!match) throw new Error(`Match not found: ${matchId}`);
   if (match.status !== "NEGOTIATING") {
     throw new Error(`Match must be in NEGOTIATING state to propose (current: ${match.status})`);
+  }
+  if (match.agentA.searchPaused || match.agentB.searchPaused) {
+    throw new Error("Cannot propose: match search is paused for one of the owners.");
   }
   if (
     !match.agentA.context ||

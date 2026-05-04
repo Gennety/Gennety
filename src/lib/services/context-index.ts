@@ -163,19 +163,23 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
   }
 
   // Check if new context triggers any existing beacons
-  const triggeredBeacons = await prisma.$queryRaw<
-    Array<{ id: string; agent_id: string; context_query: string }>
-  >`
-    SELECT b.id, b.agent_id, b.context_query
-    FROM beacons b
-    WHERE b.is_active = true
-      AND b.agent_id != ${agent.id}
-      AND b.embedding IS NOT NULL
-      AND (b.networking_goal_filter IS NULL OR b.networking_goal_filter = ${effectiveNetworkingGoal})
-      AND (1 - (b.embedding <=> ${embedding}::vector)) > 0.75
-    ORDER BY (1 - (b.embedding <=> ${embedding}::vector)) DESC
-    LIMIT 10
-  `;
+  const triggeredBeacons = agent.searchPaused
+    ? []
+    : await prisma.$queryRaw<
+        Array<{ id: string; agent_id: string; context_query: string }>
+      >`
+        SELECT b.id, b.agent_id, b.context_query
+        FROM beacons b
+        JOIN agents beacon_agent ON beacon_agent.id = b.agent_id
+        WHERE b.is_active = true
+          AND beacon_agent.search_paused = false
+          AND b.agent_id != ${agent.id}
+          AND b.embedding IS NOT NULL
+          AND (b.networking_goal_filter IS NULL OR b.networking_goal_filter = ${effectiveNetworkingGoal})
+          AND (1 - (b.embedding <=> ${embedding}::vector)) > 0.75
+        ORDER BY (1 - (b.embedding <=> ${embedding}::vector)) DESC
+        LIMIT 10
+      `;
 
   // Mark triggered beacons
   if (triggeredBeacons.length > 0) {

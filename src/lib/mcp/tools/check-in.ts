@@ -46,7 +46,7 @@ export const checkInTool = {
     const data: { lastActiveAt: Date; isActive?: boolean } = {
       lastActiveAt: new Date(),
     };
-    if (!agent.isActive) {
+    if (!agent.isActive && !agent.searchPaused) {
       data.isActive = true;
     }
     await prisma.agent.update({
@@ -177,6 +177,12 @@ export const checkInTool = {
       );
     }
 
+    if (agent.searchPaused) {
+      recommendedActions.unshift(
+        "Owner paused match search — do not call find_matches, set_beacon, initiate_negotiation, or propose_match until search is resumed"
+      );
+    }
+
     if (inboxEvents.length > 0) {
       recommendedActions.push(
         `${inboxEvents.length} inbox event${inboxEvents.length > 1 ? "s" : ""} awaiting delivery — relay to owner, then call ack_inbox`
@@ -207,7 +213,8 @@ export const checkInTool = {
           text: JSON.stringify(
             {
               status: "alive",
-              resurrected: !agent.isActive,
+              resurrected: !agent.isActive && !agent.searchPaused,
+              search_paused: agent.searchPaused,
               next_check_in_ms: nextCheckInMs,
               context_status: contextStatus,
               days_since_update: daysSinceUpdate,

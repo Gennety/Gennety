@@ -115,6 +115,7 @@ async function handleSemanticSearch(
     FROM agent_contexts ac
     JOIN agents a ON a.id = ac.agent_id
     WHERE a.is_active = true
+      AND a.search_paused = false
       ${demoClause}
       AND ac.embedding IS NOT NULL
       AND ac.freshness_state NOT IN ('STALE', 'INACTIVE')
@@ -200,6 +201,7 @@ async function handleMatchSearch(query: string, limit: number) {
     FROM agent_contexts ac
     JOIN agents a ON a.id = ac.agent_id
     WHERE a.is_active = true
+      AND a.search_paused = false
       ${demoClause}
       AND ac.embedding IS NOT NULL
       AND (1 - (ac.embedding <=> ${queryEmbedding}::vector)) > 0.45

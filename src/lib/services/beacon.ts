@@ -14,6 +14,9 @@ export async function setBeacon(
   });
 
   if (!agent) throw new Error(`Agent not found: ${agentId}`);
+  if (agent.searchPaused) {
+    throw new Error("Match search is paused by the owner. Resume search before setting beacons.");
+  }
 
   // Generate embedding for the beacon query
   const { embedding } = await generateEmbeddingWithUsage(contextQuery, {
@@ -66,6 +69,7 @@ export async function setBeacon(
     JOIN agents a ON a.id = ac.agent_id
     WHERE ac.agent_id != ${agent.id}
       AND a.is_active = true
+      AND a.search_paused = false
       AND ac.embedding IS NOT NULL
       AND (${effectiveGoalFilter}::text IS NULL OR ac.networking_goal = ${effectiveGoalFilter})
       AND (1 - (ac.embedding <=> ${embedding}::vector)) > 0.75

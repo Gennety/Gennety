@@ -156,6 +156,8 @@ function createFakePrisma() {
     negotiationLogs: [] as Row[],
     inboxEvents: [] as Row[],
     adviceSessions: [] as Row[],
+    analyticsEvents: [] as Row[],
+    computeUsage: [] as Row[],
   };
 
   const ownerById = (id: string) => db.owners.find((owner) => owner.id === id) ?? null;
@@ -262,6 +264,7 @@ function createFakePrisma() {
       ownerId: args.ownerId,
       apiKey: args.apiKey,
       isActive: true,
+      searchPaused: false,
       createdAt: new Date(),
       lastActiveAt: new Date(),
       displayName: args.displayName,
@@ -423,9 +426,26 @@ function createFakePrisma() {
         }
         return { ...chat };
       },
+      update: async (args: Row) => {
+        const chat = db.chats.find((item) => matchesWhere(item, args.where));
+        if (!chat) throw new Error("Chat not found");
+        const messages = args.data?.messages?.createMany?.data ?? [];
+        for (const message of messages) {
+          db.messages.push({
+            id: nextId("message"),
+            chatId: chat.id,
+            adviceSessionId: null,
+            createdAt: new Date(),
+            ...message,
+          });
+        }
+        return shapeChat(chat, args);
+      },
     },
 
     message: {
+      count: async (args: Row) =>
+        db.messages.filter((message) => matchesWhere(message, args.where)).length,
       create: async (args: Row) => {
         const row = {
           id: nextId("message"),
@@ -527,6 +547,30 @@ function createFakePrisma() {
       },
     },
 
+    analyticsEvent: {
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("analytics_event"),
+          createdAt: args.data?.createdAt ?? new Date(),
+          ...args.data,
+        };
+        db.analyticsEvents.push(row);
+        return { ...row };
+      },
+    },
+
+    computeUsage: {
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("compute_usage"),
+          createdAt: args.data?.createdAt ?? new Date(),
+          ...args.data,
+        };
+        db.computeUsage.push(row);
+        return { ...row };
+      },
+    },
+
     $transaction: async (callback: (tx: any) => Promise<any>) => callback(prisma),
 
     $executeRaw: async (strings: TemplateStringsArray, ...values: any[]) => {
@@ -600,6 +644,7 @@ function createFakePrisma() {
           .filter(
             (beacon) =>
               beacon.isActive &&
+              agentById(beacon.agentId)?.searchPaused !== true &&
               beacon.agentId !== publishingAgentId &&
               (!beacon.networkingGoalFilter || beacon.networkingGoalFilter === effectiveGoal)
           )
@@ -632,6 +677,7 @@ function createFakePrisma() {
           .filter(
             ({ context, agent, similarity }) =>
               agent.isActive &&
+              agent.searchPaused !== true &&
               context.embedding &&
               !["STALE", "INACTIVE"].includes(context.freshnessState) &&
               agent.lastActiveAt > livenessCutoff &&
@@ -657,6 +703,17 @@ function createFakePrisma() {
           }));
       }
 
+      if (sql.includes("SELECT (1 - (a.embedding <=> b.embedding)) AS similarity")) {
+        const targetAgentId = values[0];
+        const initiatorAgentId = values[1];
+        const targetContext = contextByAgentId(targetAgentId);
+        const initiatorContext = contextByAgentId(initiatorAgentId);
+        if (!targetContext?.embedding || !initiatorContext?.embedding) {
+          return [{ similarity: null }];
+        }
+        return [{ similarity: cosine(initiatorContext.embedding, targetContext.embedding) }];
+      }
+
       if (sql.includes("FROM agent_contexts ac")) {
         const beaconEmbedding = values[0];
         const settingAgentId = values[1];
@@ -670,6 +727,7 @@ function createFakePrisma() {
           .filter(
             ({ context, agent, similarity }) =>
               agent.isActive &&
+              agent.searchPaused !== true &&
               context.embedding &&
               (!goalFilter || context.networkingGoal === goalFilter) &&
               similarity > 0.75
@@ -845,7 +903,7 @@ async function main() {
 
     await assert.rejects(
       () => proposeMatch(matchedMatchId),
-      /Cannot propose: both agents must provide/
+      /Cannot propose: both agents must explicitly accept/
     );
 
     const overlap =
