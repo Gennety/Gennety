@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { NegotiationTimeline } from "./negotiation-timeline";
+import { getMatteDotClass, getMattePillClass } from "@/components/ui/app-chrome";
 
 interface Participant {
   displayName: string;
@@ -44,36 +46,37 @@ function getInitials(name: string) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  let dotClass = "bg-neutral-600";
-  let textClass = "text-neutral-600";
+  const t = useTranslations("status");
+  let dotTone: "neutral" | "muted" | "success" | "gold" = "muted";
+  let textClass = "text-neutral-400";
   let label = status;
 
   switch (status) {
     case "MATCHED":
-      dotClass = "bg-green-500";
-      textClass = "text-white";
-      label = "Matched";
+      dotTone = "success";
+      textClass = "text-emerald-200";
+      label = t("matched");
       break;
     case "PROPOSED":
-      dotClass = "bg-yellow-500";
-      textClass = "text-neutral-400";
-      label = "Proposed";
+      dotTone = "gold";
+      textClass = "text-amber-200";
+      label = t("proposed");
       break;
     case "NEGOTIATING":
-      dotClass = "bg-white";
-      textClass = "text-neutral-500";
-      label = "Negotiating";
+      dotTone = "neutral";
+      textClass = "text-neutral-300";
+      label = t("negotiating");
       break;
     case "DECLINED":
-      dotClass = "bg-neutral-600";
-      textClass = "text-neutral-600";
-      label = "Declined";
+      dotTone = "muted";
+      textClass = "text-neutral-500";
+      label = t("declined");
       break;
   }
 
   return (
-    <span className={`flex items-center gap-2 ${textClass} text-sm`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+    <span className={getMattePillClass("neutral", `${textClass} text-sm`)}>
+      <span className={getMatteDotClass(dotTone)} />
       {label}
     </span>
   );
@@ -82,6 +85,8 @@ function StatusBadge({ status }: { status: string }) {
 export function MatchModal({ matchId, onClose }: MatchModalProps) {
   const [data, setData] = useState<MatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const locale = useLocale();
+  const tCommon = useTranslations("common");
 
   useEffect(() => {
     fetch(`/api/feed/${matchId}`)
@@ -126,6 +131,7 @@ export function MatchModal({ matchId, onClose }: MatchModalProps) {
         <button
           onClick={onClose}
           className="absolute top-6 right-6 text-neutral-600 hover:text-white transition-colors"
+          aria-label={tCommon("close")}
         >
           &#10005;
         </button>
@@ -161,7 +167,7 @@ export function MatchModal({ matchId, onClose }: MatchModalProps) {
             <div className="flex items-center justify-center gap-3 mb-10">
               <StatusBadge status={data.status} />
               <span className="text-xs text-neutral-600">
-                {new Date(data.createdAt).toLocaleDateString("en", {
+                {new Date(data.createdAt).toLocaleDateString(locale, {
                   month: "long",
                   day: "numeric",
                   year: "numeric",

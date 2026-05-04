@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { cx, getMattePillClass, panelSoftClass } from "@/components/ui/app-chrome";
 
 interface AgentCardProps {
   rank?: number;
@@ -57,15 +58,14 @@ function FreshnessLabel({ state }: { state: string }) {
 
 function GoalBadge({ goal }: { goal: string }) {
   const colors: Record<string, string> = {
-    partnership: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    collaboration: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    mentor: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    peer: "bg-green-500/10 text-green-400 border-green-500/20",
+    partnership: "bg-indigo-950/45 text-indigo-200",
+    collaboration: "bg-blue-950/45 text-blue-200",
+    mentor: "bg-amber-950/45 text-amber-200",
+    peer: "bg-emerald-950/45 text-emerald-200",
   };
-  const cls =
-    colors[goal] || "bg-neutral-500/10 text-neutral-400 border-neutral-500/20";
+  const cls = colors[goal] || "bg-white/[0.04] text-neutral-400";
   return (
-    <span className={`px-2 py-0.5 rounded-full text-[10px] border ${cls}`}>
+    <span className={getMattePillClass("muted", `px-2.5 py-1 text-[10px] ${cls}`)}>
       {goal}
     </span>
   );
@@ -94,7 +94,7 @@ function ProfilePanel({
   const t = useTranslations();
   return (
     <div
-      className="mt-3 pt-4 border-t border-[#1a1a1a] animate-in fade-in slide-in-from-top-1 duration-200"
+      className="mt-3 border-t border-white/[0.06] pt-4 animate-in fade-in slide-in-from-top-1 duration-200"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Profile header */}
@@ -137,29 +137,29 @@ function ProfilePanel({
         </button>
       </div>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-4 mb-4 p-3 rounded-xl bg-[#111]">
+        {/* Stats row */}
+      <div className={cx("mb-4 flex items-center gap-4 rounded-[1.1rem] p-3", panelSoftClass)}>
         <div className="text-center flex-1">
           <p className="text-base font-semibold text-white">
             {reputationScore}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">{t("components.reputation")}</p>
         </div>
-        <div className="w-px h-8 bg-[#1a1a1a]" />
+        <div className="h-8 w-px bg-white/[0.06]" />
         <div className="text-center flex-1">
           <p className="text-base font-semibold text-white">
             {completedMatches}
           </p>
           <p className="text-[10px] text-neutral-500 mt-0.5">{t("components.matchesLabel")}</p>
         </div>
-        <div className="w-px h-8 bg-[#1a1a1a]" />
+        <div className="h-8 w-px bg-white/[0.06]" />
         <div className="text-center flex-1">
           <FreshnessLabel state={freshnessState} />
           <p className="text-[10px] text-neutral-500 mt-0.5">{t("components.statusLabel")}</p>
         </div>
         {similarity != null && similarity > 0 && (
           <>
-            <div className="w-px h-8 bg-[#1a1a1a]" />
+            <div className="h-8 w-px bg-white/[0.06]" />
             <div className="text-center flex-1">
               <p className="text-base font-semibold text-white">
                 {similarity}%
@@ -198,7 +198,7 @@ function ProfilePanel({
               {agentDomains.map((d) => (
                 <span
                   key={d}
-                  className="px-2 py-0.5 rounded-md bg-[#1a1a1a] text-[11px] text-neutral-400"
+                  className={getMattePillClass("muted", "rounded-full px-2 py-0.5 text-[11px]")}
                 >
                   {d}
                 </span>
@@ -221,7 +221,7 @@ function ProfilePanel({
               {expertise.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2.5 py-1 rounded-lg bg-[#1a1a1a] text-xs text-neutral-300"
+                  className={getMattePillClass("neutral", "rounded-full px-2.5 py-1 text-xs")}
                 >
                   {tag}
                 </span>
@@ -278,7 +278,7 @@ export function AgentCard(props: AgentCardProps) {
     return (
       <div
         onClick={() => setExpanded(!expanded)}
-        className="p-3 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#2a2a2a] transition-all cursor-pointer group"
+        className="group cursor-pointer rounded-[1.25rem] bg-neutral-950/62 p-3 ring-1 ring-inset ring-white/[0.06] transition-all hover:bg-neutral-950/78 hover:ring-white/[0.10]"
       >
         <div className="flex items-center gap-3">
           {/* Rank */}
@@ -289,7 +289,7 @@ export function AgentCard(props: AgentCardProps) {
           )}
 
           {/* Avatar */}
-          <div className="w-9 h-9 rounded-full bg-[#1a1a1a] flex items-center justify-center text-xs font-mono text-neutral-500 flex-shrink-0 group-hover:bg-[#222] transition-colors">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-xs font-mono text-neutral-500 transition-colors group-hover:bg-white/[0.07]">
             {getInitials(displayName)}
           </div>
 
@@ -340,21 +340,21 @@ export function AgentCard(props: AgentCardProps) {
 
   /* ─── Full card (search results) ─── */
   return (
-    <div
-      onClick={() => setExpanded(!expanded)}
-      className="p-6 rounded-2xl bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#2a2a2a] transition-all cursor-pointer"
+      <div
+        onClick={() => setExpanded(!expanded)}
+      className="cursor-pointer rounded-[1.5rem] bg-neutral-950/62 p-6 ring-1 ring-inset ring-white/[0.06] transition-all hover:bg-neutral-950/78 hover:ring-white/[0.10]"
     >
       {/* Header */}
       <div className="flex items-start gap-4">
         {/* Rank badge */}
         {rank != null && (
-          <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center text-xs font-mono text-neutral-500">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-xs font-mono text-neutral-500">
             {rank}
           </div>
         )}
 
         {/* Avatar */}
-        <div className="w-11 h-11 rounded-full bg-[#1a1a1a] flex items-center justify-center text-sm font-mono text-neutral-400 flex-shrink-0">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-sm font-mono text-neutral-400">
           {getInitials(displayName)}
         </div>
 
@@ -426,12 +426,12 @@ export function AgentCard(props: AgentCardProps) {
             </p>
           )}
 
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-[#1a1a1a]">
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/[0.06]">
             <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
               {expertise.slice(0, 4).map((tag) => (
                 <span
                   key={tag}
-                  className="px-2 py-0.5 rounded-md bg-[#1a1a1a] text-[11px] text-neutral-400"
+                  className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[11px] text-neutral-400"
                 >
                   {tag}
                 </span>

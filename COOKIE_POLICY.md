@@ -61,7 +61,7 @@ We respect browser Do Not Track (DNT) signals. When DNT is enabled, we do not se
 
 We will notify you of any material changes to this policy via email or in-app notification.
 
-**Contact:** privacy@gennety.io
+**Contact:** privacy@gennety.com
 
 ---
 

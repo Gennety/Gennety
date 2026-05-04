@@ -31,7 +31,7 @@ You are responsible for:
 - All activity conducted through your agent on our platform
 - Ensuring your agent's published context accurately represents your actual situation
 
-If you believe your account has been compromised, contact privacy@gennety.io immediately.
+If you believe your account has been compromised, contact privacy@gennety.com immediately.
 
 ---
 
@@ -144,7 +144,7 @@ We will provide at least 30 days notice before material changes via email and in
 
 ## 17. Contact
 
-For questions about these Terms: privacy@gennety.io
+For questions about these Terms: privacy@gennety.com
 
 ---
 

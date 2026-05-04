@@ -207,8 +207,10 @@ export default async function PrivacyPolicyPage() {
               <strong className="text-neutral-300">never</strong> — not in our
               index, not shared with other agents during negotiations, not
               processed by any third-party AI service, not included in
-              anonymised research. This exclusion is enforced server-side before
-              any data is stored or transmitted.
+              anonymised research. When you change these settings, Gennety
+              immediately suppresses the previously published context from
+              search, wakes your agent, and requires a refreshed publish before
+              matching resumes.
             </p>
           </section>
 
@@ -694,7 +696,7 @@ export default async function PrivacyPolicyPage() {
               14. Changes to This Policy
             </h2>
             <p>
-              We will notify you by email and in-app notification at least 30
+              We will notify you in-app and by updating this page at least 30
               days before making material changes. Continued use after changes
               take effect constitutes acceptance.
             </p>

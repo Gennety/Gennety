@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { locales, localeNames, type Locale } from "@/i18n/config";
+import { LiveStatusDot, cx, getMattePillClass } from "@/components/ui/app-chrome";
 
 /* ── Constants ── */
 
@@ -29,6 +30,33 @@ const PLATFORM_LABELS: Record<string, string> = {
   nano_claw: "Nano-Claw",
 };
 
+const WAKE_PATH = "/hooks/wake";
+const SECTION_SHELL = "border-b border-neutral-900/80 py-6";
+const SECTION_TITLE = "text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-600";
+const SUBTLE_SURFACE = "rounded-2xl bg-neutral-950/45 ring-1 ring-inset ring-white/[0.05]";
+const CODE_SURFACE = "rounded-2xl bg-neutral-950/70 ring-1 ring-inset ring-white/[0.06]";
+const INPUT =
+  "w-full rounded-xl bg-neutral-950/65 px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 ring-1 ring-inset ring-white/[0.08] transition focus:outline-none focus:ring-white/[0.16]";
+const PRIMARY_BUTTON =
+  "inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-neutral-200 disabled:opacity-50";
+const PRIMARY_BUTTON_SM =
+  "inline-flex items-center justify-center rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-black transition hover:bg-neutral-200 disabled:opacity-50";
+const SECONDARY_BUTTON =
+  "inline-flex items-center justify-center rounded-xl bg-neutral-950/55 px-4 py-2 text-sm font-medium text-neutral-300 ring-1 ring-inset ring-white/[0.08] transition hover:bg-neutral-900/70 hover:text-white disabled:opacity-50";
+const SECONDARY_BUTTON_SM =
+  "inline-flex items-center justify-center rounded-xl bg-neutral-950/55 px-3 py-1.5 text-xs font-medium text-neutral-300 ring-1 ring-inset ring-white/[0.08] transition hover:bg-neutral-900/70 hover:text-white disabled:opacity-50";
+const DANGER_BUTTON =
+  "inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
+const DANGER_BUTTON_SM =
+  "inline-flex items-center justify-center rounded-xl bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
+const DANGER_SUBTLE_BUTTON =
+  "inline-flex items-center justify-center rounded-xl bg-red-950/25 px-4 py-2 text-sm font-medium text-red-200 ring-1 ring-inset ring-red-500/[0.18] transition hover:bg-red-950/40 disabled:opacity-50";
+const OPTION_BUTTON =
+  "w-full rounded-2xl px-4 py-3 text-left transition-all ring-1 ring-inset";
+const OPTION_ACTIVE = "bg-white/[0.06] text-white ring-white/[0.16]";
+const OPTION_IDLE =
+  "bg-neutral-950/35 text-neutral-400 ring-white/[0.05] hover:bg-neutral-900/60 hover:text-neutral-200";
+
 /* ── Types ── */
 
 interface Settings {
@@ -38,14 +66,29 @@ interface Settings {
   hasPassword: boolean;
   hasGoogleAccount: boolean;
   networkingGoal: string | null;
-  notifyAllEmails: boolean;
-  notifyMatchProposals: boolean;
-  notifyNewMessages: boolean;
-  notifyFreshness: boolean;
   agentId: string | null;
   agentPlatform: string | null;
+  wakeWebhookEnabled: boolean;
   webhookUrl: string;
   webhookTokenSet: boolean;
+  wakeWebhookLastPingAt: string | null;
+  wakeWebhookLastPingOk: boolean | null;
+  wakeWebhookLastPingError: string | null;
+  privacySync: {
+    pending: boolean;
+    searchPaused: boolean;
+    changedAt: string;
+    lastPublishedAt: string | null;
+    summary: string | null;
+    action: string | null;
+    newlyExcluded: string[];
+    newlyAllowed: string[];
+    excludedNow: string[];
+    sharedNow: string[];
+    reviewFields: string[];
+    recommendedAdditions: string[];
+    recommendedRemovals: string[];
+  } | null;
 }
 
 /* ── Page ── */
@@ -57,22 +100,31 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadSettings = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const r = await fetch("/api/settings");
+      const data = await r.json().catch(() => null);
+      if (!r.ok) {
+        throw new Error(data?.error ?? "Failed to load settings");
+      }
+      setSettings(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load settings");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
-    fetch("/api/settings")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load settings");
-        return r.json();
-      })
-      .then((data) => {
-        setSettings(data);
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError(e.message);
-        setLoading(false);
-      });
-  }, [sessionStatus]);
+    loadSettings();
+  }, [sessionStatus, loadSettings]);
 
   if (sessionStatus === "loading" || loading) {
     return (
@@ -104,7 +156,9 @@ export default function SettingsPage() {
 
       <ExcludedTopicsSection
         topics={settings.excludedTopics}
+        privacySync={settings.privacySync}
         onUpdate={(v) => setSettings({ ...settings, excludedTopics: v })}
+        onRefresh={() => loadSettings({ silent: true })}
       />
 
       <ResearchConsentSection
@@ -118,28 +172,10 @@ export default function SettingsPage() {
         onUpdate={(v) => setSettings({ ...settings, networkingGoal: v })}
       />
 
-      <NotificationsSection
-        allEmails={settings.notifyAllEmails}
-        matchProposals={settings.notifyMatchProposals}
-        newMessages={settings.notifyNewMessages}
-        freshness={settings.notifyFreshness}
-        onUpdate={(key, val) => setSettings({ ...settings, [key]: val })}
-      />
-
       <LanguageSection />
 
       {settings.agentId && (
         <RegenerateKeySection agentId={settings.agentId} />
-      )}
-
-      {settings.agentId && (
-        <WebhookSection
-          webhookUrl={settings.webhookUrl}
-          webhookTokenSet={settings.webhookTokenSet}
-          onUpdate={(url, tokenSet) =>
-            setSettings({ ...settings, webhookUrl: url, webhookTokenSet: tokenSet })
-          }
-        />
       )}
 
       {settings.agentId && settings.agentPlatform && (
@@ -147,6 +183,16 @@ export default function SettingsPage() {
       )}
 
       <SetupPromptSection />
+
+      {settings.agentId && (
+        <AdvancedSection>
+          <InstantWakeSection
+            settings={settings}
+            onUpdate={(patch) => setSettings({ ...settings, ...patch })}
+            onRefresh={() => loadSettings({ silent: true })}
+          />
+        </AdvancedSection>
+      )}
 
       {/* Cookie preferences */}
 
@@ -160,12 +206,10 @@ export default function SettingsPage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50 mb-4">
-      <h2 className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-3">
-        {title}
-      </h2>
+    <section className={SECTION_SHELL}>
+      <h2 className={`${SECTION_TITLE} mb-4`}>{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -210,6 +254,47 @@ function SaveStatus({ saving, saved, err }: { saving: boolean; saved: boolean; e
   return null;
 }
 
+function Surface({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <div className={`${SUBTLE_SURFACE} ${className}`}>{children}</div>;
+}
+
+function StatusPill({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={getMattePillClass("neutral", cx("gap-1.5 px-2.5 py-1", className))}>
+      {children}
+    </span>
+  );
+}
+
+function ToggleSwitch({
+  checked,
+  disabled,
+  onClick,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative h-6 w-11 shrink-0 rounded-full ring-1 ring-inset transition-all ${
+        checked
+          ? "bg-emerald-500 ring-emerald-400/25"
+          : "bg-neutral-800 ring-white/[0.08]"
+      } disabled:opacity-50`}
+    >
+      <span
+        className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? "translate-x-5" : ""
+        }`}
+      />
+    </button>
+  );
+}
+
 /* ── P0: Agent Status ── */
 
 function AgentStatusSection({ active, onUpdate }: { active: boolean; onUpdate: (v: boolean) => void }) {
@@ -224,12 +309,15 @@ function AgentStatusSection({ active, onUpdate }: { active: boolean; onUpdate: (
 
   return (
     <Section title={t("settings.agentStatus")}>
-      <div className="flex items-center justify-between">
+      <Surface className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
         <div>
-          <p className="text-sm text-white font-medium">
+          <StatusPill
+            className={active ? "bg-emerald-950/70 text-emerald-200" : "bg-white/[0.04] text-neutral-300"}
+          >
+            {active && <AgentSearchingIcon />}
             {active ? t("settings.activeSearching") : t("settings.paused")}
-          </p>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          </StatusPill>
+          <p className="mt-3 text-xs text-neutral-500">
             {active
               ? t("settings.agentActiveDesc")
               : t("settings.agentPausedDesc")}
@@ -237,23 +325,15 @@ function AgentStatusSection({ active, onUpdate }: { active: boolean; onUpdate: (
         </div>
         <div className="flex items-center gap-3">
           <SaveStatus saving={saving} saved={saved} err={err} />
-          <button
-            onClick={toggle}
-            disabled={saving}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              active ? "bg-green-500" : "bg-neutral-700"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                active ? "translate-x-5" : ""
-              }`}
-            />
-          </button>
+          <ToggleSwitch checked={active} disabled={saving} onClick={toggle} />
         </div>
-      </div>
+      </Surface>
     </Section>
   );
+}
+
+function AgentSearchingIcon() {
+  return <LiveStatusDot tone="success" />;
 }
 
 /* ── P0: Change Password ── */
@@ -295,23 +375,23 @@ function ChangePasswordSection() {
           placeholder={t("settings.currentPassword")}
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-neutral-800/50 border border-neutral-700 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+          className={INPUT}
         />
         <input
           type="password"
           placeholder={t("settings.newPassword")}
           value={newPw}
           onChange={(e) => setNewPw(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-neutral-800/50 border border-neutral-700 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+          className={INPUT}
         />
         <input
           type="password"
           placeholder={t("settings.confirmPassword")}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-neutral-800/50 border border-neutral-700 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-500"
+          className={INPUT}
         />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <SaveStatus saving={saving} saved={saved} err={err} />
             {localErr && <span className="text-xs text-red-400">{localErr}</span>}
@@ -319,7 +399,7 @@ function ChangePasswordSection() {
           <button
             onClick={handleSubmit}
             disabled={saving || !current || !newPw || !confirm}
-            className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+            className={PRIMARY_BUTTON}
           >
             {saving ? t("common.saving") : t("settings.updatePassword")}
           </button>
@@ -333,10 +413,14 @@ function ChangePasswordSection() {
 
 function ExcludedTopicsSection({
   topics,
+  privacySync,
   onUpdate,
+  onRefresh,
 }: {
   topics: string[];
+  privacySync: Settings["privacySync"];
   onUpdate: (v: string[]) => void;
+  onRefresh: () => Promise<void>;
 }) {
   const t = useTranslations();
   const [local, setLocal] = useState(topics);
@@ -351,7 +435,10 @@ function ExcludedTopicsSection({
 
   const handleSave = async () => {
     const result = await save("/api/settings", { excludedTopics: local });
-    if (result) onUpdate(local);
+    if (result) {
+      onUpdate(local);
+      await onRefresh();
+    }
   };
 
   return (
@@ -361,17 +448,73 @@ function ExcludedTopicsSection({
           strong: (chunks) => <strong className="text-neutral-400">{chunks}</strong>,
         })}
       </p>
-      <div className="space-y-2 mb-4">
+      {privacySync?.pending && (
+        <div
+          className={`mb-4 rounded-2xl p-4 ring-1 ring-inset ${
+            privacySync.searchPaused
+              ? "bg-amber-950/18 ring-amber-500/[0.14]"
+              : "bg-sky-950/18 ring-sky-500/[0.14]"
+          }`}
+        >
+          <p
+            className={`text-sm font-medium ${
+              privacySync.searchPaused ? "text-amber-200" : "text-sky-200"
+            }`}
+          >
+            {privacySync.searchPaused
+              ? "Search paused until your agent republishes a privacy-safe context"
+              : "Agent refresh in progress for your latest privacy settings"}
+          </p>
+          {privacySync.summary && (
+            <p className="mt-2 text-xs leading-relaxed text-neutral-300">
+              {privacySync.summary}
+            </p>
+          )}
+          {privacySync.action && (
+            <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+              {privacySync.action}
+            </p>
+          )}
+          {privacySync.newlyExcluded.length > 0 && (
+            <p className="mt-3 text-xs text-red-300">
+              Stop sharing: {privacySync.newlyExcluded.join(", ")}
+            </p>
+          )}
+          {privacySync.newlyAllowed.length > 0 && (
+            <p className="mt-2 text-xs text-emerald-300">
+              Can now be shared if useful: {privacySync.newlyAllowed.join(", ")}
+            </p>
+          )}
+          {privacySync.recommendedRemovals.length > 0 && (
+            <ul className="mt-3 list-disc list-inside space-y-1 text-xs text-neutral-400">
+              {privacySync.recommendedRemovals.slice(0, 2).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
+          {privacySync.recommendedAdditions.length > 0 && (
+            <ul className="mt-3 list-disc list-inside space-y-1 text-xs text-neutral-400">
+              {privacySync.recommendedAdditions.slice(0, 2).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-[11px] text-neutral-500">
+            Changed at {new Date(privacySync.changedAt).toLocaleString()}
+          </p>
+        </div>
+      )}
+      <div className="mb-4 space-y-2.5">
         {SENSITIVE_CATEGORY_KEYS.map((cat) => {
           const excluded = local.includes(cat.value);
           return (
             <button
               key={cat.value}
               onClick={() => toggle(cat.value)}
-              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-sm ${
+              className={`${OPTION_BUTTON} flex items-center justify-between text-sm ${
                 excluded
-                  ? "border-red-900/50 bg-red-950/30 text-red-300"
-                  : "border-neutral-800 text-neutral-300 hover:border-neutral-600"
+                  ? "bg-red-950/20 text-red-200 ring-red-500/[0.18]"
+                  : `${OPTION_IDLE} text-neutral-300`
               }`}
             >
               <span>{t(cat.labelKey)}</span>
@@ -383,12 +526,12 @@ function ExcludedTopicsSection({
         })}
       </div>
       {changed && (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <SaveStatus saving={saving} saved={saved} err={err} />
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+            className={PRIMARY_BUTTON}
           >
             Save changes
           </button>
@@ -436,7 +579,7 @@ function ResearchConsentSection({
       </p>
 
       {showConfirm ? (
-        <div className="p-4 rounded-lg border border-amber-900/50 bg-amber-950/20 mb-3">
+        <div className="mb-3 rounded-2xl bg-amber-950/18 p-4 ring-1 ring-inset ring-amber-500/[0.14]">
           <p className="text-sm text-amber-300 mb-3">
             {t("settings.withdrawConfirm")}
           </p>
@@ -444,40 +587,32 @@ function ResearchConsentSection({
             <button
               onClick={confirmWithdraw}
               disabled={saving}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-500 transition-colors disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-500 disabled:opacity-50"
             >
               {saving ? t("settings.withdrawing") : t("settings.yesWithdraw")}
             </button>
             <button
               onClick={() => setShowConfirm(false)}
-              className="px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 text-xs hover:border-neutral-500 transition-colors"
+              className={SECONDARY_BUTTON_SM}
             >
               {t("common.cancel")}
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
             <button
               onClick={() => toggle(true)}
               disabled={saving}
-              className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                consent
-                  ? "border-white bg-white text-black"
-                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500"
-              }`}
+              className={consent ? PRIMARY_BUTTON : SECONDARY_BUTTON}
             >
               {t("onboarding.yesConsent")}
             </button>
             <button
               onClick={() => toggle(false)}
               disabled={saving}
-              className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
-                !consent
-                  ? "border-white bg-white text-black"
-                  : "border-neutral-700 text-neutral-400 hover:border-neutral-500"
-              }`}
+              className={!consent ? PRIMARY_BUTTON : SECONDARY_BUTTON}
             >
               {t("onboarding.noThanks")}
             </button>
@@ -515,10 +650,10 @@ function NetworkingGoalSection({
             key={g.value}
             onClick={() => select(g.value)}
             disabled={saving}
-            className={`w-full text-left p-3 rounded-lg border transition-all ${
+            className={`${OPTION_BUTTON} ${
               goal === g.value
-                ? "border-white bg-white/5 text-white"
-                : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+                ? OPTION_ACTIVE
+                : OPTION_IDLE
             }`}
           >
             <span className="text-sm font-medium">{t(g.labelKey)}</span>
@@ -527,91 +662,6 @@ function NetworkingGoalSection({
         ))}
       </div>
       <SaveStatus saving={saving} saved={saved} err={err} />
-    </Section>
-  );
-}
-
-/* ── P1: Email Notifications ── */
-
-function NotificationsSection({
-  allEmails,
-  matchProposals,
-  newMessages,
-  freshness,
-  onUpdate,
-}: {
-  allEmails: boolean;
-  matchProposals: boolean;
-  newMessages: boolean;
-  freshness: boolean;
-  onUpdate: (key: string, val: boolean) => void;
-}) {
-  const t = useTranslations();
-  const { saving, saved, err, save } = useSave();
-
-  const toggle = async (key: string, current: boolean) => {
-    const result = await save("/api/settings", { [key]: !current });
-    if (result) onUpdate(key, !current);
-  };
-
-  const rows = [
-    { key: "notifyMatchProposals", label: t("settings.matchProposals"), desc: t("settings.matchProposalsDesc"), value: matchProposals },
-    { key: "notifyNewMessages", label: t("settings.newMessages"), desc: t("settings.newMessagesDesc"), value: newMessages },
-    { key: "notifyFreshness", label: t("settings.freshnessWarnings"), desc: t("settings.freshnessWarningsDesc"), value: freshness },
-  ];
-
-  return (
-    <Section title={t("settings.emailNotifications")}>
-      {/* Global kill switch */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-800">
-        <div>
-          <p className="text-sm text-white font-medium">{t("settings.allEmailNotifications")}</p>
-          <p className="text-xs text-neutral-500">
-            {allEmails ? t("settings.emailsEnabled") : t("settings.emailsDisabled")}
-          </p>
-        </div>
-        <button
-          onClick={() => toggle("notifyAllEmails", allEmails)}
-          disabled={saving}
-          className={`relative w-11 h-6 rounded-full transition-colors ${
-            allEmails ? "bg-green-500" : "bg-neutral-700"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-              allEmails ? "translate-x-5" : ""
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Per-type toggles */}
-      <div className={`space-y-3 transition-opacity ${allEmails ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-neutral-300">{row.label}</p>
-              <p className="text-xs text-neutral-600">{row.desc}</p>
-            </div>
-            <button
-              onClick={() => toggle(row.key, row.value)}
-              disabled={saving || !allEmails}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                row.value ? "bg-green-500" : "bg-neutral-700"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                  row.value ? "translate-x-5" : ""
-                }`}
-              />
-            </button>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3">
-        <SaveStatus saving={saving} saved={saved} err={err} />
-      </div>
     </Section>
   );
 }
@@ -651,12 +701,12 @@ function RegenerateKeySection({ agentId }: { agentId: string }) {
             {t("settings.newKeyGenerated")}
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 p-2.5 rounded-lg bg-neutral-800 text-xs text-neutral-300 font-mono break-all">
+            <code className={`flex-1 p-3 text-xs text-neutral-300 font-mono break-all ${CODE_SURFACE}`}>
               {newKey}
             </code>
             <button
               onClick={() => handleCopy(newKey)}
-              className="shrink-0 p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 transition-colors"
+              className={`${SECONDARY_BUTTON_SM} shrink-0 px-2.5`}
             >
               {copied ? (
                 <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -671,7 +721,7 @@ function RegenerateKeySection({ agentId }: { agentId: string }) {
           </div>
         </div>
       ) : showConfirm ? (
-        <div className="p-4 rounded-lg border border-red-900/50 bg-red-950/20 mb-3">
+        <div className="mb-3 rounded-2xl bg-red-950/18 p-4 ring-1 ring-inset ring-red-500/[0.14]">
           <p className="text-sm text-red-300 mb-3">
             {t("settings.regenerateWarning")}
           </p>
@@ -679,24 +729,24 @@ function RegenerateKeySection({ agentId }: { agentId: string }) {
             <button
               onClick={regenerate}
               disabled={saving}
-              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-500 transition-colors disabled:opacity-50"
+              className={DANGER_BUTTON_SM}
             >
               {saving ? t("settings.generating") : t("settings.yesRegenerate")}
             </button>
             <button
               onClick={() => setShowConfirm(false)}
-              className="px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 text-xs hover:border-neutral-500 transition-colors"
+              className={SECONDARY_BUTTON_SM}
             >
               {t("common.cancel")}
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <SaveStatus saving={saving} saved={saved} err={err} />
           <button
             onClick={() => setShowConfirm(true)}
-            className="px-4 py-2 rounded-lg border border-red-900/50 text-red-300 text-sm font-medium hover:border-red-700 hover:bg-red-950/30 transition-colors"
+            className={DANGER_SUBTLE_BUTTON}
           >
             {t("settings.regenerateKey")}
           </button>
@@ -706,119 +756,484 @@ function RegenerateKeySection({ agentId }: { agentId: string }) {
   );
 }
 
-/* ── P1: Wake-up webhook ── */
+/* ── P1: Advanced / Instant wake-up ── */
 
-function WebhookSection({
-  webhookUrl,
-  webhookTokenSet,
+function AdvancedSection({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <section className={SECTION_SHELL}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="group -m-2 flex w-[calc(100%+1rem)] items-center justify-between gap-4 rounded-xl p-2 text-left transition-colors hover:bg-neutral-800/20"
+      >
+        <div>
+          <h2 className={SECTION_TITLE}>Advanced</h2>
+          <p className="text-xs text-neutral-600 mt-2">
+            Technical connectivity and diagnostics for your agent.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] text-neutral-600 transition-colors group-hover:text-neutral-400">
+            {open ? "Hide" : "Show"}
+          </span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 transition-colors group-hover:bg-neutral-800/40 group-hover:text-neutral-200">
+            <ChevronIcon open={open} className="h-4 w-4" />
+          </span>
+        </div>
+      </button>
+
+      {open && <div className="mt-4 pt-4 border-t border-neutral-800">{children}</div>}
+    </section>
+  );
+}
+
+function ChevronIcon({ open, className = "" }: { open: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      className={`${className} transition-transform duration-200 ease-out ${open ? "rotate-180" : ""}`}
+    >
+      <path
+        d="M5 7.5L10 12.5L15 7.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function normalizeWakeBaseUrl(input: string): string {
+  const trimmed = input.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.endsWith(WAKE_PATH) ? trimmed.slice(0, -WAKE_PATH.length) : trimmed;
+}
+
+function buildWakeWebhookUrl(baseUrl: string): string {
+  const normalized = normalizeWakeBaseUrl(baseUrl);
+  return normalized ? `${normalized}${WAKE_PATH}` : "";
+}
+
+function formatWakeTimestamp(value: string | null): string | null {
+  return value ? new Date(value).toLocaleString() : null;
+}
+
+function getInstantWakeStatus(settings: Pick<
+  Settings,
+  | "wakeWebhookEnabled"
+  | "webhookUrl"
+  | "webhookTokenSet"
+  | "wakeWebhookLastPingAt"
+  | "wakeWebhookLastPingOk"
+  | "wakeWebhookLastPingError"
+>) {
+  if (!settings.wakeWebhookEnabled) {
+    return {
+      label: "Off",
+      tone: "bg-neutral-800/90 text-neutral-300",
+      detail: "Gennety will rely on scheduled check-ins only.",
+    };
+  }
+
+  if (!settings.webhookUrl || !settings.webhookTokenSet) {
+    return {
+      label: "Needs setup",
+      tone: "bg-amber-950/60 text-amber-200",
+      detail: "Add a public base URL and bearer token, or let your OpenClaw set it up for you.",
+    };
+  }
+
+  if (settings.wakeWebhookLastPingOk === true) {
+    return {
+      label: "Connected",
+      tone: "bg-emerald-950/60 text-emerald-200",
+      detail: settings.wakeWebhookLastPingAt
+        ? `Last wake check succeeded at ${formatWakeTimestamp(settings.wakeWebhookLastPingAt)}.`
+        : "The last wake check succeeded.",
+    };
+  }
+
+  if (settings.wakeWebhookLastPingOk === false) {
+    return {
+      label: "Attention",
+      tone: "bg-red-950/60 text-red-200",
+      detail:
+        settings.wakeWebhookLastPingError ??
+        "The last wake check failed. Review the endpoint or token.",
+    };
+  }
+
+  return {
+    label: "Ready to test",
+    tone: "bg-sky-950/60 text-sky-200",
+    detail: "Configuration is saved. Run Test connection to verify the endpoint.",
+  };
+}
+
+function InstantWakeSection({
+  settings,
   onUpdate,
+  onRefresh,
 }: {
-  webhookUrl: string;
-  webhookTokenSet: boolean;
-  onUpdate: (url: string, tokenSet: boolean) => void;
+  settings: Settings;
+  onUpdate: (patch: Partial<Settings>) => void;
+  onRefresh: () => Promise<void>;
 }) {
   const { saving, saved, err, save } = useSave();
-  const [url, setUrl] = useState(webhookUrl);
+  const [baseUrl, setBaseUrl] = useState(() => normalizeWakeBaseUrl(settings.webhookUrl));
   const [token, setToken] = useState("");
   const [showToken, setShowToken] = useState(false);
+  const [manualOpen, setManualOpen] = useState(Boolean(settings.webhookUrl || settings.webhookTokenSet));
+  const [testing, setTesting] = useState(false);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
 
   useEffect(() => {
-    setUrl(webhookUrl);
-  }, [webhookUrl]);
+    setBaseUrl(normalizeWakeBaseUrl(settings.webhookUrl));
+  }, [settings.webhookUrl]);
 
-  const dirty = url !== webhookUrl || token.length > 0;
+  useEffect(() => {
+    if (settings.webhookUrl || settings.webhookTokenSet) {
+      setManualOpen(true);
+    }
+  }, [settings.webhookUrl, settings.webhookTokenSet]);
+
+  const desiredUrl = buildWakeWebhookUrl(baseUrl);
+  const dirty = desiredUrl !== settings.webhookUrl || token.length > 0;
+  const status = getInstantWakeStatus(settings);
+
+  const handleToggle = async () => {
+    const next = !settings.wakeWebhookEnabled;
+    const result = await save("/api/settings", { wakeWebhookEnabled: next });
+    if (result) {
+      onUpdate({ wakeWebhookEnabled: next });
+    }
+  };
 
   const handleSave = async () => {
     const body: Record<string, string> = {};
-    if (url !== webhookUrl) body.webhookUrl = url;
-    if (token.length > 0) body.webhookToken = token;
+
+    if (!desiredUrl && (settings.webhookUrl || settings.webhookTokenSet)) {
+      body.webhookUrl = "";
+      body.webhookToken = "";
+    } else {
+      if (desiredUrl !== settings.webhookUrl) body.webhookUrl = desiredUrl;
+      if (token.length > 0) body.webhookToken = token;
+    }
+
     if (Object.keys(body).length === 0) return;
 
     const result = await save("/api/settings", body);
     if (result) {
-      const nextTokenSet = token.length > 0 ? true : webhookTokenSet;
-      onUpdate(url, nextTokenSet);
+      const cleared = body.webhookUrl === "";
+      onUpdate({
+        webhookUrl: cleared ? "" : desiredUrl,
+        webhookTokenSet: cleared ? false : token.length > 0 ? true : settings.webhookTokenSet,
+        wakeWebhookEnabled: cleared ? false : settings.wakeWebhookEnabled,
+        wakeWebhookLastPingAt: null,
+        wakeWebhookLastPingOk: null,
+        wakeWebhookLastPingError: null,
+      });
       setToken("");
+      setTestMessage(null);
+      setTestError(null);
     }
   };
 
   const handleClear = async () => {
     const result = await save("/api/settings", { webhookUrl: "", webhookToken: "" });
     if (result) {
-      setUrl("");
+      setBaseUrl("");
       setToken("");
-      onUpdate("", false);
+      setTestMessage(null);
+      setTestError(null);
+      onUpdate({
+        webhookUrl: "",
+        webhookTokenSet: false,
+        wakeWebhookEnabled: false,
+        wakeWebhookLastPingAt: null,
+        wakeWebhookLastPingOk: null,
+        wakeWebhookLastPingError: null,
+      });
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestMessage(null);
+    setTestError(null);
+    try {
+      const res = await fetch("/api/settings/webhook/test", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to test connection");
+      }
+
+      onUpdate({
+        wakeWebhookLastPingAt: data.checkedAt ?? null,
+        wakeWebhookLastPingOk: data.ok,
+        wakeWebhookLastPingError: data.error ?? null,
+      });
+
+      if (data.ok) {
+        setTestMessage("Connection succeeded.");
+      } else {
+        setTestError(data.error ?? "Wake endpoint did not confirm successfully.");
+      }
+    } catch (e) {
+      setTestError(e instanceof Error ? e.message : "Failed to test connection");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setTestMessage(null);
+    setTestError(null);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const loadPrompt = useCallback(async () => {
+    setPromptLoading(true);
+    setPromptError(null);
+    try {
+      const res = await fetch("/api/onboarding/openclaw-prompt?mode=instant-wake");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to load setup prompt");
+      }
+      setPrompt(data.prompt);
+      return data.prompt as string;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load setup prompt";
+      setPromptError(message);
+      return null;
+    } finally {
+      setPromptLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPrompt();
+  }, [loadPrompt]);
+
+  const handleCopyPrompt = async () => {
+    const text = prompt ?? (await loadPrompt());
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 2500);
+    } catch {
+      setPromptError("Failed to copy the prompt");
     }
   };
 
   return (
-    <Section title="Agent wake-up webhook">
-      <p className="text-xs text-neutral-500 mb-3 leading-relaxed">
-        Optional. Lets Gennety wake your agent on hot events (new message, new match)
-        instead of waiting for its next polling tick. For OpenClaw agents, paste your
-        gateway&apos;s{" "}
-        <code className="text-neutral-400 font-mono">POST /hooks/wake</code> URL and
-        bearer token.
-      </p>
-
-      <label className="block mb-3">
-        <span className="text-xs text-neutral-500 block mb-1">Webhook URL (HTTPS)</span>
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://your-agent.example.com/hooks/wake"
-          className="w-full px-3 py-2 rounded-lg bg-neutral-800 text-sm text-white placeholder:text-neutral-600 border border-neutral-700 focus:border-neutral-500 focus:outline-none"
-        />
-      </label>
-
-      <label className="block mb-3">
-        <span className="text-xs text-neutral-500 block mb-1">
-          Bearer token {webhookTokenSet && !token && (
-            <span className="text-neutral-600">(currently set — leave empty to keep)</span>
-          )}
-        </span>
-        <div className="flex gap-2">
-          <input
-            type={showToken ? "text" : "password"}
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder={webhookTokenSet ? "•••••••••" : "token"}
-            autoComplete="off"
-            className="flex-1 px-3 py-2 rounded-lg bg-neutral-800 text-sm text-white placeholder:text-neutral-600 border border-neutral-700 focus:border-neutral-500 focus:outline-none font-mono"
-          />
-          <button
-            type="button"
-            onClick={() => setShowToken((v) => !v)}
-            className="px-3 rounded-lg border border-neutral-700 text-xs text-neutral-400 hover:border-neutral-500"
-          >
-            {showToken ? "Hide" : "Show"}
-          </button>
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-medium text-white">Instant wake-up for your agent</h3>
+          <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
+            Lets Gennety wake your agent immediately on hot events, instead of waiting
+            for the next scheduled check-in.
+          </p>
         </div>
-      </label>
+        <ToggleSwitch
+          checked={settings.wakeWebhookEnabled}
+          disabled={saving}
+          onClick={handleToggle}
+        />
+      </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <SaveStatus saving={saving} saved={saved} err={err} />
-        <div className="flex gap-2">
-          {(webhookUrl || webhookTokenSet) && (
+      <Surface className="px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <StatusPill className={status.tone}>
+                {status.label}
+              </StatusPill>
+            </div>
+            <p className="mt-2 text-xs text-neutral-400">{status.detail}</p>
+
+            {settings.webhookUrl && (
+              <p className="mt-2 text-[11px] text-neutral-500 font-mono break-all">
+                {settings.webhookUrl}
+              </p>
+            )}
+
+            {settings.wakeWebhookLastPingAt && (
+              <p className="mt-2 text-[11px] text-neutral-600">
+                Last checked: {formatWakeTimestamp(settings.wakeWebhookLastPingAt)}
+              </p>
+            )}
+
+            {testMessage && <p className="mt-2 text-xs text-green-400">{testMessage}</p>}
+            {testError && <p className="mt-2 text-xs text-red-400">{testError}</p>}
+
+            {settings.wakeWebhookLastPingOk === false && settings.wakeWebhookLastPingError && !testError && (
+              <p className="mt-2 text-[11px] text-red-300">{settings.wakeWebhookLastPingError}</p>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0">
             <button
-              onClick={handleClear}
-              disabled={saving}
-              className="px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 text-xs hover:border-neutral-500 transition-colors disabled:opacity-50"
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className={SECONDARY_BUTTON_SM}
             >
-              Clear
+              {refreshing ? "Refreshing..." : "Refresh status"}
             </button>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={saving || !dirty}
-            className="px-4 py-1.5 rounded-lg bg-white text-black text-xs font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
-          >
-            Save
-          </button>
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing || !settings.webhookUrl || !settings.webhookTokenSet}
+              className={SECONDARY_BUTTON_SM}
+            >
+              {testing ? "Testing..." : "Test connection"}
+            </button>
+          </div>
+        </div>
+      </Surface>
+
+      <div className="border-t border-neutral-800 pt-5">
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-600">
+            Recommended setup
+          </p>
+          <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
+            Let your OpenClaw configure instant wake-up for you and register it back
+            with Gennety automatically.
+          </p>
+        </div>
+
+        <div className="mt-3">
+          <p className="text-sm font-medium text-white">OpenClaw Prompt</p>
+          <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
+            Copy this prompt and send it to your OpenClaw. It will configure
+            instant wake-up automatically.
+          </p>
+
+          {promptError && <p className="mt-3 text-xs text-red-400">{promptError}</p>}
+
+          <div className={`mt-3 max-h-[220px] overflow-y-auto p-3 font-mono text-xs text-neutral-300 whitespace-pre-wrap ${CODE_SURFACE}`}>
+            {prompt ?? (promptLoading ? "Loading prompt..." : "Prompt unavailable right now.")}
+          </div>
+
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              disabled={promptLoading}
+              className={`${PRIMARY_BUTTON_SM} whitespace-nowrap`}
+            >
+              {promptCopied ? "Copied" : promptLoading ? "Loading..." : "Copy OpenClaw Prompt"}
+            </button>
+          </div>
         </div>
       </div>
-    </Section>
+
+      <div className="border-t border-neutral-800 pt-4">
+        <button
+          type="button"
+          onClick={() => setManualOpen((v) => !v)}
+          className="group inline-flex items-center gap-2 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
+        >
+          <span>{manualOpen ? "Hide manual configuration" : "Manual configuration"}</span>
+          <ChevronIcon open={manualOpen} className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {manualOpen && (
+        <div className="space-y-3">
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            Manual path if you already know your agent&apos;s public base URL and bearer
+            token. Gennety will use <code className="text-neutral-400 font-mono">{WAKE_PATH}</code> automatically.
+          </p>
+
+          <label className="block">
+            <span className="text-xs text-neutral-500 block mb-1">Agent base URL (HTTPS)</span>
+            <input
+              type="url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://your-agent.example.com"
+              className={INPUT}
+            />
+          </label>
+
+          <p className="text-[11px] text-neutral-600">
+            Wake endpoint preview:{" "}
+            <span className="font-mono text-neutral-400">{desiredUrl || `https://…${WAKE_PATH}`}</span>
+          </p>
+
+          <label className="block">
+            <span className="text-xs text-neutral-500 block mb-1">
+              Bearer token {settings.webhookTokenSet && !token && (
+                <span className="text-neutral-600">(currently set — leave empty to keep)</span>
+              )}
+            </span>
+            <div className="flex gap-2">
+              <input
+                type={showToken ? "text" : "password"}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder={settings.webhookTokenSet ? "•••••••••" : "token"}
+                autoComplete="off"
+                className={`${INPUT} flex-1 font-mono`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowToken((v) => !v)}
+                className={SECONDARY_BUTTON_SM}
+              >
+                {showToken ? "Hide" : "Show"}
+              </button>
+            </div>
+          </label>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <SaveStatus saving={saving} saved={saved} err={err} />
+            </div>
+            <div className="flex gap-2">
+              {(settings.webhookUrl || settings.webhookTokenSet) && (
+                <button
+                  onClick={handleClear}
+                  disabled={saving}
+                  className={SECONDARY_BUTTON_SM}
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving || !dirty}
+                className={PRIMARY_BUTTON_SM}
+                >
+                  Save
+                </button>
+              </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -828,15 +1243,17 @@ function LanguageSection() {
   const t = useTranslations();
   const currentLocale = useLocale() as Locale;
   const router = useRouter();
-  const [selected, setSelected] = useState<Locale | "auto">(currentLocale);
+  const [selected, setSelected] = useState<Locale | "auto">(() => {
+    if (typeof document === "undefined") {
+      return currentLocale;
+    }
 
-  // Check if user has an explicit cookie set
-  useEffect(() => {
     const cookie = document.cookie
       .split("; ")
       .find((c) => c.startsWith("locale="));
-    if (!cookie) setSelected("auto");
-  }, []);
+
+    return cookie ? currentLocale : "auto";
+  });
 
   const handleChange = async (value: Locale | "auto") => {
     setSelected(value);
@@ -862,10 +1279,10 @@ function LanguageSection() {
         {/* Auto option */}
         <button
           onClick={() => handleChange("auto")}
-          className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${
+          className={`${OPTION_BUTTON} text-sm ${
             selected === "auto"
-              ? "border-white bg-white/5 text-white"
-              : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+              ? OPTION_ACTIVE
+              : OPTION_IDLE
           }`}
         >
           {t("settings.languageAuto")}
@@ -875,10 +1292,10 @@ function LanguageSection() {
           <button
             key={l}
             onClick={() => handleChange(l)}
-            className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${
+            className={`${OPTION_BUTTON} text-sm ${
               selected === l
-                ? "border-white bg-white/5 text-white"
-                : "border-neutral-800 text-neutral-400 hover:border-neutral-600"
+                ? OPTION_ACTIVE
+                : OPTION_IDLE
             }`}
           >
             {localeNames[l]}
@@ -936,26 +1353,29 @@ function DownloadSoulSection({ agentId, platform }: { agentId: string; platform:
 
   return (
     <Section title={t("settings.agentInstructions")}>
-      <p className="text-xs text-neutral-500 mb-3">
-        {t("settings.platform")} <span className="text-neutral-400">{PLATFORM_LABELS[platform] ?? platform}</span>
-      </p>
-      <div className="flex items-center gap-2">
-        {error && <span className="text-xs text-red-400 mr-auto">{error}</span>}
-        <button
-          onClick={handleCopy}
-          disabled={copied}
-          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
-        >
-          {copied ? t("common.copied") : t("settings.copyContent")}
-        </button>
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-300 text-sm font-medium hover:border-neutral-500 hover:text-white transition-colors disabled:opacity-50"
-        >
-          {downloading ? t("settings.downloading") : t("settings.downloadSoul")}
-        </button>
-      </div>
+      <Surface className="flex flex-wrap items-center justify-between gap-3 px-4 py-4">
+        <div>
+          <p className="text-xs text-neutral-500">{t("settings.platform")}</p>
+          <p className="mt-1 text-sm text-neutral-300">{PLATFORM_LABELS[platform] ?? platform}</p>
+          {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleCopy}
+            disabled={copied}
+            className={SECONDARY_BUTTON}
+          >
+            {copied ? t("common.copied") : t("settings.copyContent")}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className={SECONDARY_BUTTON}
+          >
+            {downloading ? t("settings.downloading") : t("settings.downloadSoul")}
+          </button>
+        </div>
+      </Surface>
     </Section>
   );
 }
@@ -1005,10 +1425,8 @@ function SetupPromptSection() {
         {t("settings.setupPromptDesc")}
       </p>
 
-      <div className="mb-3">
-        <div className="max-h-[300px] overflow-y-auto p-4 rounded-lg border border-neutral-800 bg-neutral-900/80 font-mono text-xs text-neutral-300 leading-relaxed whitespace-pre-wrap select-all">
-          {loading ? t("common.loading") : prompt}
-        </div>
+      <div className={`mb-3 max-h-[300px] overflow-y-auto p-4 font-mono text-xs leading-relaxed text-neutral-300 whitespace-pre-wrap select-all ${CODE_SURFACE}`}>
+        {loading ? t("common.loading") : prompt}
       </div>
 
       {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
@@ -1017,7 +1435,7 @@ function SetupPromptSection() {
         <button
           onClick={handleCopy}
           disabled={!prompt || copied}
-          className="px-4 py-2 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+          className={PRIMARY_BUTTON}
         >
           {copied ? t("common.copied") : t("settings.copyPrompt")}
         </button>
@@ -1042,8 +1460,8 @@ function DeleteAccountSection() {
   };
 
   return (
-    <div className="border border-red-900/30 rounded-xl p-5 bg-red-950/10 mt-8 mb-4">
-      <h2 className="text-xs font-medium text-red-400/80 uppercase tracking-wider mb-3">
+    <div className="mt-10 rounded-2xl bg-red-950/[0.08] p-5 ring-1 ring-inset ring-red-500/[0.10]">
+      <h2 className="mb-4 text-[11px] font-medium uppercase tracking-[0.18em] text-red-300/75">
         {t("settings.dangerZone")}
       </h2>
 
@@ -1057,14 +1475,14 @@ function DeleteAccountSection() {
             placeholder={t("settings.typeEmailConfirm")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-lg bg-neutral-900 border border-red-900/50 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-red-700 mb-3"
+            className="mb-3 w-full rounded-xl bg-neutral-950/65 px-3 py-2.5 text-sm text-white placeholder:text-neutral-600 ring-1 ring-inset ring-red-500/[0.18] transition focus:outline-none focus:ring-red-400/[0.28]"
           />
           {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
           <div className="flex gap-2">
             <button
               onClick={handleDelete}
               disabled={saving || !email}
-              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-500 transition-colors disabled:opacity-50"
+              className={DANGER_BUTTON}
             >
               {saving ? t("settings.deleting") : t("settings.deleteMyAccount")}
             </button>
@@ -1073,20 +1491,20 @@ function DeleteAccountSection() {
                 setShowConfirm(false);
                 setEmail("");
               }}
-              className="px-4 py-2 rounded-lg border border-neutral-700 text-neutral-400 text-sm hover:border-neutral-500 transition-colors"
+              className={SECONDARY_BUTTON}
             >
               {t("common.cancel")}
             </button>
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-neutral-400">
             {t("settings.deleteDesc")}
           </p>
           <button
             onClick={() => setShowConfirm(true)}
-            className="px-4 py-2 rounded-lg border border-red-900/50 text-red-300 text-sm font-medium hover:border-red-700 hover:bg-red-950/30 transition-colors"
+            className={DANGER_SUBTLE_BUTTON}
           >
             {t("settings.deleteAccount")}
           </button>
@@ -1095,4 +1513,3 @@ function DeleteAccountSection() {
     </div>
   );
 }
-

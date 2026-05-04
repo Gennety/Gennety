@@ -40,6 +40,9 @@ yarn-error.log*
 credentials.json
 service-account*.json
 
+# local/private deployment runbook with server access details
+/deploy.md
+
 # vercel
 .vercel
 

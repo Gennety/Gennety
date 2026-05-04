@@ -42,77 +42,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <UnreadProvider>
-    <div className="min-h-screen bg-[#050505]">
-      {/* ── Desktop: 3-column grid ── */}
-      <div className="hidden lg:grid max-w-[1280px] mx-auto min-h-screen" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2.5fr) minmax(0, 0.75fr)' }}>
-        {/* Left Sidebar */}
-        <aside className="sticky top-0 h-screen border-r border-[#1a1a1a] flex flex-col px-5 py-6 min-w-0">
-          <a
-            href={landingUrl || "/"}
-            className="text-xl font-bold text-white mb-10 px-3"
-          >
-            Gennety
-          </a>
-
-          <nav className="flex flex-col gap-1 flex-1">
-            <SidebarLink href="/home" active={pathname === "/home"}>
-              <HomeIcon />
-              {t("nav.home")}
-            </SidebarLink>
-            <SidebarLink href="/activity" active={pathname === "/activity"}>
-              <FeedIcon />
-              {t("nav.feed")}
-            </SidebarLink>
-            <SidebarLink href="/matches" active={pathname === "/matches"}>
-              <MatchesIcon />
-              {t("nav.matches")}
-            </SidebarLink>
-            <ChatsSidebarLink active={pathname === "/chats" || pathname.startsWith("/chat/")} />
-            <SidebarLink
-              href="/notify"
-              active={pathname === "/notify"}
-            >
-              <BellIcon />
-              {t("nav.notifications")}
-            </SidebarLink>
-            <SidebarLink href="/settings" active={pathname === "/settings"}>
-              <SettingsIcon />
-              {t("nav.settings")}
-            </SidebarLink>
-          </nav>
-        </aside>
-
-        {/* Center Content */}
-        <main className="min-w-0 border-r border-[#1a1a1a]">
-          {children}
-        </main>
-
-        {/* Right Sidebar */}
-        <aside className="sticky top-0 h-screen flex flex-col px-5 py-6 min-w-0 overflow-hidden">
-          <ProfileSidebar />
-          <div className="mt-auto">
-            {session?.user && (
-              <button
-                onClick={() => signOut({ callbackUrl: landingUrl || "/" })}
-                className="w-full py-2.5 text-sm text-neutral-500 hover:text-white border border-neutral-800 rounded-lg hover:border-neutral-600 transition-colors"
-              >
-                {t("common.signOut")}
-              </button>
-            )}
-          </div>
-        </aside>
-      </div>
-
-      {/* ── Mobile: top bar + bottom nav ── */}
-      <div className="lg:hidden flex flex-col min-h-screen">
-        {/* Top bar */}
-        <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#050505]/80 border-b border-[#1a1a1a] px-4 h-12 flex items-center justify-between">
+      <div className="min-h-screen bg-[#050505]">
+        <header className="sticky top-0 z-50 flex h-12 items-center justify-between border-b border-[#1a1a1a] bg-[#050505]/80 px-4 backdrop-blur-xl lg:hidden">
           <a href={landingUrl || "/"} className="text-base font-bold text-white">
             Gennety
           </a>
           <Link
             href="/settings"
-            className={`p-2 rounded-lg transition-colors ${
+            className={`rounded-lg p-2 transition-colors ${
               pathname === "/settings" ? "text-white" : "text-neutral-500 hover:text-white"
             }`}
           >
@@ -120,11 +57,72 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
-        {/* Content */}
-        <main className="flex-1">{children}</main>
+        <div
+          className="mx-auto min-h-[calc(100vh-3rem)] lg:grid lg:min-h-screen lg:max-w-[1280px]"
+          style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2.5fr) minmax(0, 0.75fr)" }}
+        >
+          <aside className="sticky top-0 hidden h-screen min-w-0 flex-col border-r border-[#1a1a1a] px-5 py-6 lg:flex">
+            <a
+              href={landingUrl || "/"}
+              className="mb-10 px-3 text-xl font-bold text-white"
+            >
+              Gennety
+            </a>
 
-        {/* Bottom nav */}
-        <nav className="sticky bottom-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-t border-[#1a1a1a] flex items-center justify-around h-14">
+            <nav className="flex flex-1 flex-col gap-1">
+              <SidebarLink href="/home" active={pathname === "/home"}>
+                <HomeIcon />
+                {t("nav.home")}
+              </SidebarLink>
+              <SidebarLink href="/activity" active={pathname === "/activity"}>
+                <FeedIcon />
+                {t("nav.feed")}
+              </SidebarLink>
+              <SidebarLink href="/matches" active={pathname === "/matches"}>
+                <MatchesIcon />
+                {t("nav.matches")}
+              </SidebarLink>
+              <ChatsSidebarLink active={pathname === "/chats" || pathname.startsWith("/chat/")} />
+              <SidebarLink
+                href="/notify"
+                active={pathname === "/notify"}
+              >
+                <BellIcon />
+                {t("nav.notifications")}
+              </SidebarLink>
+              <SidebarLink href="/settings" active={pathname === "/settings"}>
+                <SettingsIcon />
+                {t("nav.settings")}
+              </SidebarLink>
+            </nav>
+          </aside>
+
+          <main className="min-w-0 lg:border-r lg:border-[#1a1a1a]">
+            {children}
+          </main>
+
+          <aside className="sticky top-0 hidden h-screen min-w-0 flex-col overflow-hidden px-5 py-6 lg:flex">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
+              <ProfileSidebar />
+            </div>
+            <div
+              id="app-right-sidebar-slot"
+              className="mt-4 shrink-0 flex flex-col items-stretch justify-start"
+            />
+            <div className="mt-4">
+              {session?.user && (
+                <button
+                  onClick={() => signOut({ callbackUrl: landingUrl || "/" })}
+                  className="w-full rounded-lg border border-neutral-800 py-2.5 text-sm text-neutral-500 transition-colors hover:border-neutral-600 hover:text-white"
+                >
+                  {t("common.signOut")}
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        <nav className="sticky bottom-0 z-50 flex h-14 items-center justify-around border-t border-[#1a1a1a] bg-[#050505]/90 backdrop-blur-xl lg:hidden">
           <MobileNavLink href="/home" active={pathname === "/home"}>
             <HomeIcon />
           </MobileNavLink>
@@ -143,7 +141,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </MobileNavLink>
         </nav>
       </div>
-    </div>
     </UnreadProvider>
   );
 }

@@ -1,8 +1,12 @@
 "use client";
 
-import { motion, type Variants } from "framer-motion";
+import { useState } from "react";
+import { motion, type Variants, AnimatePresence } from "framer-motion";
 
 export function ProblemSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [isMatchPrincipleOpen, setIsMatchPrincipleOpen] = useState(false);
+
   const draw: Variants = {
     hidden: { pathLength: 0, opacity: 0 },
     visible: {
@@ -16,7 +20,7 @@ export function ProblemSection() {
   };
 
   return (
-    <section className="py-20 sm:py-32 px-4 sm:px-6 max-w-5xl mx-auto space-y-24">
+    <section className="py-[74px] sm:py-[122px] px-4 sm:px-6 max-w-5xl mx-auto space-y-[100px] sm:space-y-[132px]">
       {/* Block 1: Problem */}
       <div className="flex flex-col md:flex-row gap-12 md:gap-20 items-center">
         <div className="flex-1 space-y-8">
@@ -29,23 +33,56 @@ export function ProblemSection() {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[
               { title: "The barrier of first contact", desc: "Most people don't know where to find potential partners or how to reach out. So they delay — or avoid it entirely." },
               { title: "The right people are nearby — but you'll never know", desc: "There's no mechanism that says at the right moment: \"Here's someone you should meet — and here's why.\" So the connection never happens." },
               { title: "Hard to explain mutual value", desc: "Even when contact happens, people struggle to articulate why working together makes sense. The synergy is real — but invisible." },
               { title: "Networking stays random", desc: "Finding people at your level, with similar challenges or a complementary perspective, is nearly impossible without the right tool. It relies on luck." }
-            ].map((item, i) => (
-              <div key={i} className="flex gap-4 items-start p-4 bg-[#0a0a0a] rounded-xl border border-[#1a1a1a] hover:border-[#2a2a2a] transition-colors">
-                <div className="min-w-8 h-8 rounded-full bg-[#111] border border-[#2a2a2a] flex items-center justify-center text-xs font-medium text-neutral-400 mt-0.5">
-                  {i + 1}
+            ].map((item, i) => {
+              const isOpen = openIndex === i;
+              
+              return (
+                <div 
+                  key={i} 
+                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  className={`flex gap-4 items-start p-4 bg-[#0a0a0a] rounded-xl border transition-colors cursor-pointer ${isOpen ? 'border-[#333]' : 'border-[#1a1a1a] hover:border-[#2a2a2a]'}`}
+                >
+                  <div className={`min-w-8 h-8 rounded-full border flex items-center justify-center text-xs font-medium mt-0.5 shrink-0 transition-colors ${isOpen ? 'bg-[#1a1a1a] border-[#333] text-white' : 'bg-[#111] border-[#2a2a2a] text-neutral-400'}`}>
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 mt-1">
+                    <div className="flex items-start sm:items-center justify-between gap-4">
+                      <h3 className={`text-sm font-medium transition-colors ${isOpen ? 'text-white' : 'text-neutral-300'}`}>
+                        {item.title}
+                      </h3>
+                      <motion.div
+                        initial={false}
+                        animate={{ rotate: isOpen ? 180 : 0 }}
+                        className="text-neutral-500 shrink-0 mt-0.5 sm:mt-0"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </motion.div>
+                    </div>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <p className="text-sm text-neutral-500 leading-relaxed pt-2">{item.desc}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-medium text-white mb-1">{item.title}</h3>
-                  <p className="text-sm text-neutral-500 leading-relaxed">{item.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -72,28 +109,60 @@ export function ProblemSection() {
       </div>
 
       {/* Block 2: Mutual Match principle */}
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 md:p-12 relative overflow-hidden">
+      <div className="relative">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
           
           <div className="max-w-xl">
             <p className="text-xs sm:text-sm uppercase tracking-[0.2em] text-neutral-600 mb-4">
               Mutual Match principle
             </p>
-            <h3 className="text-2xl sm:text-3xl font-medium text-white leading-snug mb-4">
-              Nobody reaches out first. Both sides receive the proposal at the same time.
-            </h3>
-            <p className="text-base sm:text-lg text-neutral-400 leading-relaxed mb-8">
-              Agents negotiate behind the scenes before either person knows the other exists. Nobody feels like they &quot;messaged first&quot; — which removes the biggest psychological barrier in cold networking.
-            </p>
-            <div className="pt-8 border-t border-[#1a1a1a]">
-              <p className="text-base text-neutral-500 leading-relaxed">
-                Social networks were built to connect people. Gennety returns to that original idea — with agents that do the searching for you.
-              </p>
+            
+            <div 
+              className="group cursor-pointer"
+              onClick={() => setIsMatchPrincipleOpen(!isMatchPrincipleOpen)}
+            >
+              <div className="flex items-start justify-between gap-6">
+                <h3 className="text-2xl sm:text-3xl font-medium text-white leading-snug group-hover:text-neutral-200 transition-colors">
+                  Nobody reaches out first. Both sides receive the proposal at the same time.
+                </h3>
+                <motion.div
+                  initial={false}
+                  animate={{ rotate: isMatchPrincipleOpen ? 180 : 0 }}
+                  className="text-neutral-500 mt-2 sm:mt-1.5 shrink-0 group-hover:text-neutral-300 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </motion.div>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {isMatchPrincipleOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4">
+                      <p className="text-base sm:text-lg text-neutral-400 leading-relaxed mb-8">
+                        Agents negotiate behind the scenes before either person knows the other exists. Nobody feels like they &quot;messaged first&quot; — which removes the biggest psychological barrier in cold networking.
+                      </p>
+                      <div className="pt-8 border-t border-[#1a1a1a]">
+                        <p className="text-base text-neutral-500 leading-relaxed">
+                          Social networks were built to connect people. Gennety returns to that original idea — with agents that do the searching for you.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
           {/* Animation Container */}
-          <div className="relative w-full aspect-video sm:aspect-square lg:aspect-auto lg:h-[400px] flex items-center justify-center rounded-xl bg-[#050505] border border-[#1a1a1a] overflow-hidden">
+          <div className="relative w-full aspect-video sm:aspect-square lg:aspect-auto lg:h-[400px] flex items-center justify-center">
             {/* Minimalist SVG Graph */}
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 300">
               <defs>

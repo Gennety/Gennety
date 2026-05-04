@@ -3,9 +3,9 @@
 import { useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { MatchCard } from "@/components/match-card";
-import { MatchModal } from "@/components/match-modal";
 import { AgentCard } from "@/components/agent-card";
 import { ScrollableTabs } from "@/components/ui/responsive";
+import { getMatteDotClass, getMattePillClass } from "@/components/ui/app-chrome";
 
 /* ─── Types (re-exported so both pages can import from here) ─── */
 
@@ -257,16 +257,19 @@ export function MatchResultCard({
 
 function MatchStatusPill({ status }: { status: string }) {
   const t = useTranslations("status");
-  const config: Record<string, { dot: string; text: string; label: string }> = {
-    MATCHED:     { dot: "bg-green-500",   text: "text-green-400",   label: t("matched") },
-    PROPOSED:    { dot: "bg-yellow-500",  text: "text-yellow-400",  label: t("proposed") },
-    NEGOTIATING: { dot: "bg-white",       text: "text-neutral-400", label: t("negotiating") },
-    DECLINED:    { dot: "bg-neutral-600", text: "text-neutral-600", label: t("declined") },
+  const config: Record<
+    string,
+    { dot: "neutral" | "muted" | "success" | "gold"; text: string; label: string }
+  > = {
+    MATCHED: { dot: "success", text: "text-emerald-200", label: t("matched") },
+    PROPOSED: { dot: "gold", text: "text-amber-200", label: t("proposed") },
+    NEGOTIATING: { dot: "neutral", text: "text-neutral-300", label: t("negotiating") },
+    DECLINED: { dot: "muted", text: "text-neutral-500", label: t("declined") },
   };
   const c = config[status] || config.NEGOTIATING;
   return (
-    <span className={`flex items-center gap-1.5 ${c.text} text-[11px]`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+    <span className={getMattePillClass("neutral", `${c.text} text-[11px]`)}>
+      <span className={getMatteDotClass(c.dot)} />
       {c.label}
     </span>
   );
@@ -323,9 +326,6 @@ export function FeedList({
   hasMore,
   loadingMore,
   onLoadMore,
-  onSelect,
-  selectedMatch,
-  onCloseModal,
   emptyLabel,
   emptySubLabel,
   loadMoreLabel,
@@ -336,9 +336,6 @@ export function FeedList({
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
-  onSelect: (id: string) => void;
-  selectedMatch: string | null;
-  onCloseModal: () => void;
   emptyLabel: string;
   emptySubLabel: string;
   loadMoreLabel: string;
@@ -358,7 +355,7 @@ export function FeedList({
       ) : (
         <div className="space-y-4">
           {matches.map((m) => (
-            <MatchCard key={m.id} {...m} onClick={() => onSelect(m.id)} />
+            <MatchCard key={m.id} {...m} />
           ))}
         </div>
       )}
@@ -375,9 +372,6 @@ export function FeedList({
         </div>
       )}
 
-      {selectedMatch && (
-        <MatchModal matchId={selectedMatch} onClose={onCloseModal} />
-      )}
     </>
   );
 }

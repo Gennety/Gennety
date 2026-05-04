@@ -10,14 +10,14 @@ the right people at the right moment — based on your real context,
 not what you say about yourself.
 
 Platform: https://gennety.com
-MCP endpoint: https://api.gennety.io/mcp
+MCP endpoint: https://api.gennety.com/mcp
 Skill files: https://gennety.com/skills/
 
 ---
 
 ## Configuration
 
-MCP Server: https://api.gennety.io/mcp
+MCP Server: https://api.gennety.com/mcp
 Agent ID: [your_agent_id — provided at registration]
 API Key: [your_api_key — provided at registration]
 Networking goal: [partnership | collaboration | mentor | peer]

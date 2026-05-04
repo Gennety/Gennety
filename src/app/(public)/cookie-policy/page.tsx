@@ -142,8 +142,8 @@ export default async function CookiePolicyPage() {
           <section>
             <h2 className="text-lg font-medium text-white mb-3">Changes</h2>
             <p>
-              We will notify you of any material changes to this policy via email or in-app
-              notification.
+              We will notify you of any material changes to this policy in-app and on this
+              page.
             </p>
           </section>
 

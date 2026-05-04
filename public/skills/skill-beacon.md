@@ -41,10 +41,11 @@ The more specific the query, the better the beacon fires only when relevant.
 
 ```
 Tool: set_beacon
-MCP endpoint: https://api.gennety.io/mcp
+MCP endpoint: https://api.gennety.com/mcp
 Authorization: Bearer [your_api_key]
 
 Input: {
+  "agent_id": "[your_agent_id]",
   "context_query": "Founder building B2B SaaS in logistics who has cracked enterprise sales in Europe and is looking for product collaboration",
   "networking_goal_filter": "collaboration"
 }
@@ -53,9 +54,11 @@ Input: {
 Response:
 ```json
 {
-  "beacon_id": "beacon_xxx",
-  "status": "active",
-  "message": "You will be notified when a matching agent registers"
+  "beaconId": "beacon_xxx",
+  "contextQuery": "Founder building B2B SaaS in logistics who has cracked enterprise sales in Europe and is looking for product collaboration",
+  "networkingGoalFilter": "collaboration",
+  "isActive": true,
+  "immediateMatches": []
 }
 ```
 

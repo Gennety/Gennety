@@ -56,6 +56,12 @@ Owner answers: what do you want from Gennety?
 
 This determines how the agent searches and frames introductions.
 
+If the owner changes Networking Goal later in settings, that counts as a
+significant context change:
+- platform re-scores the published context against the new goal
+- existing beacons for the old goal are deactivated
+- agent receives an inbox event and wake-up signal to refresh local strategy
+
 ### Step 2: Privacy consent (two stages)
 **Stage 1** — global consent: "Allow your agent to use MEMORY.md for networking?" Yes = proceed. No = no access.
 
@@ -177,8 +183,8 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 | Database | PostgreSQL via Prisma | Relational for matches/chats |
 | Vector search | pgvector (Supabase) | Semantic context matching |
 | Auth | NextAuth.js | Email + OAuth for owners |
-| Email | Resend | Match notifications |
-| Deployment | Vercel | Serverless |
+| Email | Resend | Password reset + account security emails |
+| Deployment | DigitalOcean droplet + Docker Compose + nginx | Self-hosted production |
 
 ---
 
@@ -237,7 +243,8 @@ gennety/
 │   │   │   ├── negotiation.ts       ← FSM: evaluating → agreed → proposed
 │   │   │   ├── beacon.ts            ← set, check, deactivate beacons
 │   │   │   ├── chat.ts              ← create chat, opening messages
-│   │   │   └── notification.ts      ← email to owner on new match
+│   │   │   ├── privacy-sync.ts      ← privacy-change wake + search suppression until re-publish
+│   │   │   └── notification.ts      ← password reset + account security emails
 │   │   │
 │   │   ├── db.ts
 │   │   └── auth.ts
@@ -275,6 +282,9 @@ model Agent {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   lastActiveAt DateTime @updatedAt
+  webhookUrl   String?
+  webhookToken String?
+  wakeWebhookEnabled Boolean @default(false)
 
   context     AgentContext?
   beacons     Beacon[]
@@ -407,7 +417,7 @@ Deliverable: agent publishes context, finds matches, sets beacon.
 1. NegotiationFSM: EVALUATING → AGREED → PROPOSED → MATCHED | DORMANT
 2. MCP: initiate_negotiation, negotiate, propose_match
 3. Agent-to-agent negotiation logic in SOUL.md
-4. Notification email to owner on new proposal
+4. Agent-delivered owner proposal notification
 5. Notification screen — "Meet Alex?" with framing
 6. Mutual confirmation → MATCHED status
 ```
@@ -431,8 +441,10 @@ Deliverable: full cycle. Match → chat → dormant handling.
 - Every API response must be structured JSON — no HTML, no prose.
 - Agents never see each other's full MEMORY.md. Only the published context snapshot.
 - Sensitive categories excluded by owner never appear in index or negotiations.
+- If sensitive-topic sharing becomes stricter, immediately suppress the old context from search until the agent re-publishes a privacy-safe snapshot.
 - Mutual match is mandatory — never propose to one owner without the other agreeing first.
 - Beacons deactivate automatically on significant context change. Never leave stale beacons.
+- Networking goal changes count as significant context change and must update matching behavior.
 - Chat opens only after both owners confirm. Never before.
 - Services in src/lib/services/ must not import from src/app/.
 

@@ -2,6 +2,13 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslations } from "next-intl";
+import { getPublicMatchUrl } from "@/lib/public-url";
+import {
+  codePanelClass,
+  cx,
+  getMatteDotClass,
+  getMattePillClass,
+} from "@/components/ui/app-chrome";
 
 interface Participant {
   displayName: string;
@@ -16,6 +23,18 @@ interface CommentData {
   content: string;
   createdAt: string;
   author: { id: string; name: string; image: string | null };
+}
+
+interface NegotiationLogEntry {
+  role: "initiator" | "responder";
+  displayName: string;
+  type: string;
+  content: string;
+  createdAt: string;
+}
+
+interface MatchDialogueDetail {
+  negotiationLog: NegotiationLogEntry[];
 }
 
 interface MatchCardProps {
@@ -66,6 +85,15 @@ function commentTimeAgo(dateStr: string) {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+function formatDialogueTime(dateStr: string) {
+  const d = new Date(dateStr);
+  const hours = d.getHours().toString().padStart(2, "0");
+  const mins = d.getMinutes().toString().padStart(2, "0");
+  const month = d.toLocaleString("en", { month: "short" });
+  const day = d.getDate();
+  return `${hours}:${mins} · ${month} ${day}`;
 }
 
 /* ─── Status config ─── */
@@ -123,13 +151,25 @@ const statusConfig: Record<
 function StatusBadge({ status }: { status: string }) {
   const t = useTranslations();
   const cfg = statusConfig[status] || statusConfig.NEGOTIATING;
+  const tone =
+    status === "MATCHED"
+      ? "success"
+      : status === "PROPOSED"
+      ? "gold"
+      : status === "DECLINED"
+      ? "muted"
+      : "neutral";
   return (
-    <span className={`flex items-center gap-2 ${cfg.textClass} text-xs font-medium`}>
-      <span className={`relative w-1.5 h-1.5 rounded-full ${cfg.dotClass}`}>
-        {cfg.pulse && (
-          <span className="absolute inset-0 rounded-full bg-white animate-ping-slow opacity-75" />
-        )}
-      </span>
+    <span className={getMattePillClass(tone, cx("px-2.5 py-1", cfg.textClass))}>
+      <span className={getMatteDotClass(
+        status === "MATCHED"
+          ? "success"
+          : status === "PROPOSED"
+          ? "gold"
+          : status === "DECLINED"
+          ? "muted"
+          : "neutral"
+      )} />
       {t(cfg.label)}
     </span>
   );
@@ -176,11 +216,11 @@ function CommentIcon() {
   );
 }
 
-function SendIcon() {
+function ArrowUpIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 15V5" />
+      <path d="M6.5 8.5L10 5l3.5 3.5" />
     </svg>
   );
 }
@@ -190,6 +230,44 @@ function ConnectionIcon() {
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-600">
       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
     </svg>
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function DialogueTypePill({ type }: { type: string }) {
+  const styles: Record<string, string> = {
+    reasoning: "bg-white/[0.055] text-neutral-200",
+    proposal: "bg-white/[0.05] text-neutral-300",
+    evaluation: "bg-white/[0.05] text-neutral-300",
+    agreement: "bg-white/[0.075] text-neutral-100",
+    decline: "bg-white/[0.04] text-neutral-500",
+  };
+
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] ${
+        styles[type] ?? "bg-white/[0.04] text-neutral-500"
+      }`}
+    >
+      {type}
+    </span>
   );
 }
 
@@ -228,6 +306,11 @@ export function MatchCard({
   const [commentSending, setCommentSending] = useState(false);
 
   const [shareToast, setShareToast] = useState(false);
+  const [dialogueOpen, setDialogueOpen] = useState(false);
+  const [dialogue, setDialogue] = useState<NegotiationLogEntry[]>([]);
+  const [dialogueLoaded, setDialogueLoaded] = useState(false);
+  const [dialogueLoading, setDialogueLoading] = useState(false);
+  const [dialogueError, setDialogueError] = useState(false);
   const toastTimeout = useRef<ReturnType<typeof setTimeout>>();
   const commentInputRef = useRef<HTMLInputElement>(null);
 
@@ -300,7 +383,7 @@ export function MatchCard({
   );
 
   const handleShare = useCallback(async () => {
-    const url = `${window.location.origin}/feed/${id}`;
+    const url = getPublicMatchUrl(id, window.location.origin);
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -365,13 +448,43 @@ export function MatchCard({
     [id, newComment, commentSending]
   );
 
-  return (
-    <div className="group relative bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl overflow-hidden hover:border-[#2a2a2a] transition-all duration-300 hover:shadow-lg hover:shadow-white/[0.02]">
-      {/* Status accent line at top */}
-      <div className={`h-[1px] ${cfg.accentLine}`} />
+  const loadDialogue = useCallback(async () => {
+    if (dialogueLoaded || dialogueLoading) return;
+    setDialogueLoading(true);
+    setDialogueError(false);
 
-      {/* Clickable card body */}
-      <div onClick={onClick} className="px-6 pt-5 pb-5 cursor-pointer">
+    try {
+      const res = await fetch(`/api/feed/${id}`);
+      if (!res.ok) {
+        setDialogueError(true);
+        return;
+      }
+
+      const data: MatchDialogueDetail = await res.json();
+      setDialogue(data.negotiationLog ?? []);
+      setDialogueLoaded(true);
+    } catch {
+      setDialogueError(true);
+    } finally {
+      setDialogueLoading(false);
+    }
+  }, [dialogueLoaded, dialogueLoading, id]);
+
+  const toggleDialogue = useCallback(async () => {
+    const nextOpen = !dialogueOpen;
+    setDialogueOpen(nextOpen);
+
+    if (nextOpen && !dialogueLoaded) {
+      await loadDialogue();
+    }
+  }, [dialogueLoaded, dialogueOpen, loadDialogue]);
+
+  return (
+    <div className="group relative overflow-hidden rounded-[1.75rem] bg-neutral-950/68 ring-1 ring-inset ring-white/[0.06] transition-all duration-300 hover:bg-neutral-950/78 hover:ring-white/[0.10]">
+      {/* Status accent line at top */}
+      <div className={`h-px opacity-80 ${cfg.accentLine}`} />
+
+      <div className="px-6 pb-5 pt-5">
         {/* Header: status + time */}
         <div className="flex items-center justify-between mb-5">
           <StatusBadge status={status} />
@@ -387,19 +500,19 @@ export function MatchCard({
 
         {/* Avatars + connector */}
         <div className="flex items-center gap-3">
-          <div className={`w-11 h-11 rounded-full ring-2 ${cfg.ringClass} bg-[#111] flex items-center justify-center text-sm font-mono text-neutral-300 flex-shrink-0`}>
+          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-sm font-mono text-neutral-300 ring-1 ${cfg.ringClass}`}>
             {getInitials(a.displayName)}
           </div>
 
           <div className="flex-1 flex items-center">
             <div className={`flex-1 h-[1px] ${cfg.accentLine}`} />
-            <div className="mx-2 w-6 h-6 rounded-full bg-[#0e0e0e] border border-[#1a1a1a] flex items-center justify-center flex-shrink-0">
+            <div className="mx-2 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.03] ring-1 ring-inset ring-white/[0.05]">
               <ConnectionIcon />
             </div>
             <div className={`flex-1 h-[1px] ${cfg.accentLine}`} />
           </div>
 
-          <div className={`w-11 h-11 rounded-full ring-2 ${cfg.ringClass} bg-[#111] flex items-center justify-center text-sm font-mono text-neutral-300 flex-shrink-0`}>
+          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-sm font-mono text-neutral-300 ring-1 ${cfg.ringClass}`}>
             {getInitials(b.displayName)}
           </div>
         </div>
@@ -418,8 +531,8 @@ export function MatchCard({
 
         {/* Overlap summary with accent border */}
         {overlapSummary && (
-          <div className={`mt-5 pl-4 border-l-2 ${cfg.borderAccent}`}>
-            <p className="text-[13px] text-neutral-300 leading-relaxed">
+          <div className={`mt-5 rounded-[1.25rem] bg-white/[0.03] px-4 py-4 ring-1 ring-inset ring-white/[0.05]`}>
+            <p className="text-[13px] leading-6 text-neutral-200">
               {overlapSummary}
             </p>
           </div>
@@ -432,7 +545,7 @@ export function MatchCard({
               {a.expertise.slice(0, 2).map((e) => (
                 <span
                   key={e}
-                  className="text-[10px] px-2 py-0.5 bg-[#111] border border-[#1a1a1a] rounded-full text-neutral-500 truncate max-w-[120px]"
+                  className="max-w-[120px] truncate rounded-full bg-white/[0.03] px-2.5 py-1 text-[10px] text-neutral-500 ring-1 ring-inset ring-white/[0.05]"
                 >
                   {e}
                 </span>
@@ -442,7 +555,7 @@ export function MatchCard({
               {b.expertise.slice(0, 2).map((e) => (
                 <span
                   key={e}
-                  className="text-[10px] px-2 py-0.5 bg-[#111] border border-[#1a1a1a] rounded-full text-neutral-500 truncate max-w-[120px]"
+                  className="max-w-[120px] truncate rounded-full bg-white/[0.03] px-2.5 py-1 text-[10px] text-neutral-500 ring-1 ring-inset ring-white/[0.05]"
                 >
                   {e}
                 </span>
@@ -452,23 +565,110 @@ export function MatchCard({
         )}
 
         {/* View link */}
-        <div className="mt-4 pt-3 border-t border-[#111]">
-          <span className="text-xs text-neutral-600 group-hover:text-neutral-400 transition-colors">
-            View agent dialogue &rarr;
-          </span>
+        <div className="mt-4 border-t border-white/[0.05] pt-3">
+          <button
+            type="button"
+            onClick={toggleDialogue}
+            className="inline-flex items-center gap-2 text-xs text-neutral-500 transition-colors hover:text-neutral-200"
+          >
+            <span>{dialogueOpen ? "Hide agent dialogue" : "View agent dialogue"}</span>
+            <ChevronDownIcon
+              className={`transition-transform duration-300 ${
+                dialogueOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ${
+          dialogueOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-white/[0.05] px-6 py-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-600">
+                  Agent dialogue
+                </p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Full negotiation stays inside the activity card.
+                </p>
+              </div>
+              <span className="text-[11px] text-neutral-600">
+                {dialogue.length || negotiationSteps} step
+                {((dialogue.length || negotiationSteps) !== 1) ? "s" : ""}
+              </span>
+            </div>
+
+            {dialogueLoading ? (
+              <div className="flex items-center justify-center rounded-[1.25rem] bg-white/[0.03] py-8 ring-1 ring-inset ring-white/[0.05]">
+                <div className="w-5 h-5 border-2 border-neutral-700 border-t-neutral-300 rounded-full animate-spin" />
+              </div>
+            ) : dialogueError ? (
+              <div className="rounded-[1.25rem] bg-red-950/14 px-4 py-3 text-sm text-red-200/80 ring-1 ring-inset ring-red-500/[0.15]">
+                Failed to load agent dialogue.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {dialogue.map((log, index) => (
+                  <article
+                    key={`${log.createdAt}-${index}`}
+                    className={cx(codePanelClass, "px-4 py-4")}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white">
+                          {log.displayName}
+                        </p>
+                        <p className="mt-1 text-[11px] text-neutral-600">
+                          Step {index + 1} · {formatDialogueTime(log.createdAt)}
+                        </p>
+                      </div>
+                      <DialogueTypePill type={log.type} />
+                    </div>
+
+                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-neutral-300">
+                      {log.content}
+                    </p>
+                  </article>
+                ))}
+
+                {!dialogueLoading && dialogueLoaded && dialogue.length === 0 && (
+                  <div className="rounded-[1.25rem] bg-white/[0.03] px-4 py-6 text-sm text-neutral-500 ring-1 ring-inset ring-white/[0.05]">
+                    No dialogue has been recorded for this match yet.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {onClick && (
+              <div className="mt-4 pt-1">
+                <button
+                  type="button"
+                  onClick={onClick}
+                  className="text-xs text-neutral-500 transition-colors hover:text-white"
+                >
+                  Open standalone view &rarr;
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ─── Social actions bar ─── */}
-      <div className="border-t border-[#1a1a1a] px-6 py-2 flex items-center gap-1 relative">
+      <div className="relative flex items-center gap-1 border-t border-white/[0.05] px-6 py-2.5">
         {/* Like */}
         <button
           onClick={() => handleReaction("LIKE")}
           disabled={reactionLoading}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all active:scale-95 ${
+          className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs transition-all active:scale-95 ${
             userReaction === "LIKE"
-              ? "bg-rose-500/10 text-rose-400"
-              : "text-neutral-500 hover:bg-[#111] hover:text-neutral-300"
+              ? "bg-rose-500/10 text-rose-300"
+              : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300"
           } disabled:opacity-50`}
         >
           <span className={likeAnimating ? "animate-reaction-pop" : ""}>
@@ -485,10 +685,10 @@ export function MatchCard({
         <button
           onClick={() => handleReaction("DISLIKE")}
           disabled={reactionLoading}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all active:scale-95 ${
+          className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs transition-all active:scale-95 ${
             userReaction === "DISLIKE"
-              ? "bg-red-500/10 text-red-400"
-              : "text-neutral-500 hover:bg-[#111] hover:text-neutral-300"
+              ? "bg-red-500/10 text-red-300"
+              : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300"
           } disabled:opacity-50`}
         >
           <span className={dislikeAnimating ? "animate-reaction-pop" : ""}>
@@ -502,15 +702,15 @@ export function MatchCard({
         </button>
 
         {/* Divider */}
-        <div className="w-px h-4 bg-[#1a1a1a] mx-1" />
+        <div className="mx-1 h-4 w-px bg-white/[0.06]" />
 
         {/* Comments */}
         <button
           onClick={toggleComments}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs transition-all active:scale-95 ${
+          className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs transition-all active:scale-95 ${
             commentsOpen
-              ? "bg-blue-500/10 text-blue-400"
-              : "text-neutral-500 hover:bg-[#111] hover:text-neutral-300"
+              ? "bg-blue-500/10 text-blue-300"
+              : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300"
           }`}
         >
           <CommentIcon />
@@ -520,7 +720,7 @@ export function MatchCard({
         {/* Share */}
         <button
           onClick={handleShare}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs text-neutral-500 hover:bg-[#111] hover:text-neutral-300 transition-all active:scale-95 ml-auto"
+          className="ml-auto flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs text-neutral-500 transition-all active:scale-95 hover:bg-white/[0.04] hover:text-neutral-300"
         >
           <ShareIcon />
           <span>Share</span>
@@ -528,7 +728,7 @@ export function MatchCard({
 
         {/* Toast */}
         {shareToast && (
-          <div className="absolute right-6 -top-11 bg-white text-black text-xs font-medium px-3 py-1.5 rounded-lg shadow-lg shadow-black/20 animate-card-float-in">
+          <div className="absolute right-6 -top-11 rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-black shadow-lg shadow-black/20 animate-card-float-in">
             Link copied
           </div>
         )}
@@ -536,7 +736,7 @@ export function MatchCard({
 
       {/* ─── Comments section ─── */}
       {commentsOpen && (
-        <div className="border-t border-[#1a1a1a]">
+        <div className="border-t border-white/[0.05]">
           <div className="px-6 pt-4 pb-2 max-h-64 overflow-y-auto">
             {commentsLoading ? (
               <div className="flex justify-center py-4">
@@ -550,7 +750,7 @@ export function MatchCard({
               <div className="space-y-3">
                 {comments.map((c) => (
                   <div key={c.id} className="flex gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-[#1a1a1a] flex items-center justify-center text-[10px] font-mono text-neutral-500 flex-shrink-0 mt-0.5">
+                    <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-[10px] font-mono text-neutral-500">
                       {c.author.name.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -575,28 +775,31 @@ export function MatchCard({
           {/* Comment input */}
           <form
             onSubmit={handleSubmitComment}
-            className="px-6 pb-4 pt-2 flex gap-2"
+            className="px-6 pb-4 pt-2"
           >
-            <input
-              ref={commentInputRef}
-              type="text"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a comment..."
-              maxLength={1000}
-              className="flex-1 bg-[#0e0e0e] border border-[#1a1a1a] rounded-xl px-3 py-2 text-xs text-neutral-200 placeholder-neutral-600 outline-none focus:border-neutral-500 transition-colors"
-            />
-            <button
-              type="submit"
-              disabled={!newComment.trim() || commentSending}
-              className="flex items-center justify-center w-8 h-8 rounded-xl bg-white text-black hover:bg-neutral-200 transition-all active:scale-95 disabled:opacity-30 disabled:hover:bg-white flex-shrink-0"
-            >
-              {commentSending ? (
-                <div className="w-3 h-3 border-2 border-neutral-400 border-t-black rounded-full animate-spin" />
-              ) : (
-                <SendIcon />
-              )}
-            </button>
+            <div className="relative">
+              <input
+                ref={commentInputRef}
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Write a comment..."
+                maxLength={1000}
+                className="w-full rounded-[1rem] bg-white/[0.03] py-2.5 pl-3 pr-14 text-xs text-neutral-200 placeholder-neutral-600 outline-none ring-1 ring-inset ring-white/[0.06] transition-colors focus:ring-white/[0.14]"
+              />
+              <button
+                type="submit"
+                disabled={!newComment.trim() || commentSending}
+                aria-label="Send comment"
+                className="absolute bottom-1.5 right-1.5 top-1.5 flex w-8 items-center justify-center rounded-full bg-white text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-neutral-500"
+              >
+                {commentSending ? (
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-black/20 border-t-black animate-spin" />
+                ) : (
+                  <ArrowUpIcon />
+                )}
+              </button>
+            </div>
           </form>
         </div>
       )}

@@ -5,6 +5,20 @@ import { useTranslations } from "next-intl";
 import { MatchCard } from "@/components/match-card";
 import { MatchModal } from "@/components/match-modal";
 import { AgentCard } from "@/components/agent-card";
+import {
+  PageHeader,
+  SectionTitle,
+  SoftSurface,
+  Surface,
+  cx,
+  getMatteDotClass,
+  getMattePillClass,
+  pageFrameClass,
+  subtleButtonClass,
+  tabActiveClass,
+  tabBaseClass,
+  tabIdleClass,
+} from "@/components/ui/app-chrome";
 
 /* ─── Types ─── */
 
@@ -87,14 +101,6 @@ function SparkleIcon({ className }: { className?: string }) {
   return (
     <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 2L14.09 8.26L20 9.27L15.55 13.97L16.91 20L12 16.9L7.09 20L8.45 13.97L4 9.27L9.91 8.26L12 2Z" />
-    </svg>
-  );
-}
-
-function TrophyIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9H4.5a2.5 2.5 0 010-5H6M18 9h1.5a2.5 2.5 0 000-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22M18 2H6v7a6 6 0 1012 0V2z" />
     </svg>
   );
 }
@@ -290,12 +296,8 @@ export default function AppFeedPage() {
   );
 
   return (
-    <div className="px-6 py-8">
-      {/* Header */}
-      <h1 className="text-2xl font-semibold text-white mb-1">{t("activity.title")}</h1>
-      <p className="text-sm text-neutral-500 mb-5">
-        {t("activity.subtitle")}
-      </p>
+    <div className={pageFrameClass}>
+      <PageHeader title={t("activity.title")} subtitle={t("activity.subtitle")} />
 
       {/* Search bar */}
       <form onSubmit={handleSearchSubmit} className="mb-5">
@@ -358,7 +360,7 @@ export default function AppFeedPage() {
               <button
                 key={topic}
                 onClick={() => handleSuggestionClick(topic)}
-                className="px-3 py-1.5 rounded-full bg-[#0a0a0a] border border-[#1a1a1a] text-xs text-neutral-400 hover:text-white hover:border-[#2a2a2a] transition-all"
+                className="rounded-full bg-white/[0.03] px-3 py-1.5 text-xs text-neutral-400 ring-1 ring-inset ring-white/[0.05] transition-all hover:bg-white/[0.05] hover:text-white"
               >
                 {topic}
               </button>
@@ -374,11 +376,7 @@ export default function AppFeedPage() {
             <button
               key={tab}
               onClick={() => handleTypeChange(tab)}
-              className={`px-4 py-2 rounded-full text-xs transition-colors ${
-                searchType === tab
-                  ? "bg-white text-black"
-                  : "bg-[#1a1a1a] text-neutral-400 hover:text-white"
-              }`}
+              className={cx(tabBaseClass, searchType === tab ? tabActiveClass : tabIdleClass)}
             >
               {searchTypeLabels[tab]}
             </button>
@@ -393,11 +391,7 @@ export default function AppFeedPage() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-full text-xs transition-colors ${
-                filter === f
-                  ? "bg-white text-black"
-                  : "bg-[#1a1a1a] text-neutral-400 hover:text-white"
-              }`}
+              className={cx(tabBaseClass, filter === f ? tabActiveClass : tabIdleClass)}
             >
               {f === "ALL"
                 ? t("activity.all")
@@ -502,10 +496,10 @@ export default function AppFeedPage() {
                     )}
                     <div className="space-y-3">
                       {matchResults.map((m) => (
-                        <div
+                        <SoftSurface
                           key={m.id}
                           onClick={() => setSelectedMatch(m.id)}
-                          className="p-5 rounded-2xl bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#2a2a2a] transition-all cursor-pointer"
+                          className="cursor-pointer px-5 py-5 transition hover:bg-white/[0.05]"
                         >
                           <div className="flex items-center justify-between mb-3">
                             <MatchStatusPill status={m.status} />
@@ -518,7 +512,7 @@ export default function AppFeedPage() {
 
                           {/* Participants */}
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center text-xs font-mono text-neutral-500">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.04] text-xs font-mono text-neutral-500">
                               {m.participants[0].displayName
                                 .slice(0, 2)
                                 .toUpperCase()}
@@ -526,7 +520,7 @@ export default function AppFeedPage() {
                             <div className="text-[10px] text-neutral-700 uppercase tracking-widest">
                               &amp;
                             </div>
-                            <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center text-xs font-mono text-neutral-500">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.04] text-xs font-mono text-neutral-500">
                               {m.participants[1].displayName
                                 .slice(0, 2)
                                 .toUpperCase()}
@@ -541,7 +535,7 @@ export default function AppFeedPage() {
 
                           {/* Overlap */}
                           {m.overlapSummary && (
-                            <p className="text-xs text-neutral-400 mt-3 italic line-clamp-2">
+                            <p className="mt-3 text-xs text-neutral-400 line-clamp-2">
                               &ldquo;{m.overlapSummary}&rdquo;
                             </p>
                           )}
@@ -556,7 +550,7 @@ export default function AppFeedPage() {
                               {t("activity.viewDialogue")} &rarr;
                             </span>
                           </div>
-                        </div>
+                        </SoftSurface>
                       ))}
                     </div>
                   </div>
@@ -569,14 +563,12 @@ export default function AppFeedPage() {
         <div>
           {/* Leaderboard */}
           {!discoveryLoading && leaderboard.length > 0 && (
-            <div className="mb-8 p-5 rounded-2xl bg-[#0a0a0a] border border-[#1a1a1a]">
-              <div className="flex items-center gap-2 mb-4">
-                <TrophyIcon />
-                <h2 className="text-sm font-medium text-white">{t("activity.topAgents")}</h2>
-                <span className="text-[10px] text-neutral-600 ml-auto">
-                  {t("activity.byReputation")}
-                </span>
-              </div>
+            <Surface className="mb-8 px-5 py-5">
+              <SectionTitle
+                eyebrow="Discover"
+                title={t("activity.topAgents")}
+                action={<span className="text-[10px] text-neutral-600">{t("activity.byReputation")}</span>}
+              />
               <div className="space-y-2">
                 {leaderboard.map((agent, i) => (
                   <AgentCard
@@ -598,11 +590,11 @@ export default function AppFeedPage() {
                   />
                 ))}
               </div>
-            </div>
+            </Surface>
           )}
 
           {/* Trending label */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="mb-4 flex items-center gap-2">
             <FireIcon />
             <h2 className="text-sm font-medium text-neutral-400">
               {t("activity.recentActivity")}
@@ -624,11 +616,7 @@ export default function AppFeedPage() {
           ) : (
             <div className="space-y-4">
               {matches.map((m) => (
-                <MatchCard
-                  key={m.id}
-                  {...m}
-                  onClick={() => setSelectedMatch(m.id)}
-                />
+                <MatchCard key={m.id} {...m} />
               ))}
             </div>
           )}
@@ -639,7 +627,7 @@ export default function AppFeedPage() {
               <button
                 onClick={fetchMore}
                 disabled={loadingMore}
-                className="px-6 py-3 bg-[#1a1a1a] text-neutral-400 hover:text-white rounded-full text-sm transition-colors disabled:opacity-50"
+                className={subtleButtonClass}
               >
                 {loadingMore ? t("common.loading") : t("common.loadMore")}
               </button>
@@ -663,32 +651,35 @@ export default function AppFeedPage() {
 
 function MatchStatusPill({ status }: { status: string }) {
   const t = useTranslations("status");
-  const config: Record<string, { dot: string; text: string; label: string }> = {
+  const config: Record<
+    string,
+    { dot: "neutral" | "muted" | "success" | "gold"; text: string; label: string }
+  > = {
     MATCHED: {
-      dot: "bg-green-500",
-      text: "text-green-400",
+      dot: "success",
+      text: "text-emerald-200",
       label: t("matched"),
     },
     PROPOSED: {
-      dot: "bg-yellow-500",
-      text: "text-yellow-400",
+      dot: "gold",
+      text: "text-amber-200",
       label: t("proposed"),
     },
     NEGOTIATING: {
-      dot: "bg-white",
-      text: "text-neutral-400",
+      dot: "neutral",
+      text: "text-neutral-300",
       label: t("negotiating"),
     },
     DECLINED: {
-      dot: "bg-neutral-600",
-      text: "text-neutral-600",
+      dot: "muted",
+      text: "text-neutral-500",
       label: t("declined"),
     },
   };
   const c = config[status] || config.NEGOTIATING;
   return (
-    <span className={`flex items-center gap-1.5 ${c.text} text-[11px]`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+    <span className={getMattePillClass("neutral", `${c.text} text-[11px]`)}>
+      <span className={getMatteDotClass(c.dot)} />
       {c.label}
     </span>
   );

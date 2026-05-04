@@ -1,9 +1,14 @@
 # CI/CD Audit Report — Gennety
 
+> Archived note: this report describes an older Vercel deployment setup from
+> March 2026. It is not the current production deployment runbook. Current
+> production deploy instructions live in the private root-level `deploy.md`
+> referenced from `AGENTS.md`.
+
 **Date:** 2026-03-26
 **Repository:** github.com/Gennety/Gennety
 **Stack:** Next.js 14 App Router + Prisma + Supabase (PostgreSQL + pgvector)
-**Deploy target:** Vercel
+**Historical deploy target:** Vercel
 **CI:** GitHub Actions
 
 ---

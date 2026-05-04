@@ -3,6 +3,25 @@
 > Primary context document for Claude Code.
 > Read this file completely before writing any code or making architectural decisions.
 
+## Deployment Runbook
+
+Production deploy instructions for the DigitalOcean droplet live in
+[`deploy.md`](./deploy.md). That file is local/private and intentionally
+gitignored because it contains server access details.
+
+When the user asks to deploy, read `deploy.md` first and execute the requested
+deployment autonomously. If the user says to deploy the whole app, use the full
+deploy flow. If the user names specific files, folders, or a feature area, use
+the partial deploy flow and rebuild the container when application code changed.
+Do not ask for missing server details unless `deploy.md` is unavailable or the
+documented access fails.
+
+For production deployment, `deploy.md` is the source of truth. Older references
+to Vercel in `README.md`, `docs/CICD_AUDIT_REPORT.md`, `vercel.json`, cron
+comments, or public docs are not production deployment instructions. The current
+production target is the DigitalOcean droplet running Docker Compose behind
+nginx.
+
 ## Claude Instructions
 
 ### gstack
@@ -196,7 +215,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 | Vector search | pgvector (Supabase) | Semantic context matching |
 | Auth | NextAuth.js | Email + OAuth for owners |
 | Email | Resend | Password reset + account security emails |
-| Deployment | Vercel | Serverless |
+| Deployment | DigitalOcean droplet + Docker Compose + nginx | Self-hosted production |
 
 ---
 
@@ -205,6 +224,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 ```
 gennety/
 ├── AGENTS.md
+├── deploy.md                        ← private deployment runbook (gitignored)
 ├── SOUL.md                          ← issued to agents at onboarding
 ├── INDEX.md                         ← soul skill index with startup sequence
 ├── RULES.md                         ← soul always-active rules, loaded at startup

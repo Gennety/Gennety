@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
+import {
+  PageHeader,
+  SoftSurface,
+  Surface,
+  pageFrameClass,
+  primaryButtonClass,
+  subtleButtonClass,
+} from "@/components/ui/app-chrome";
 
 interface MatchProposal {
   matchId: string;
@@ -21,10 +30,12 @@ interface MatchProposal {
 
 export default function NotifyPage() {
   const t = useTranslations();
+  const router = useRouter();
   const { status: sessionStatus } = useSession();
   const [matches, setMatches] = useState<MatchProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -46,20 +57,31 @@ export default function NotifyPage() {
 
   async function handleAction(matchId: string, action: "confirm" | "dormant") {
     setActionLoading(matchId);
-    const res = await fetch("/api/matches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchId, action }),
-    });
-    const result = await res.json();
+    setError(null);
 
-    if (result.status === "MATCHED" && result.matchId) {
-      window.location.href = `/chat/${result.matchId}`;
-      return;
+    try {
+      const res = await fetch("/api/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchId, action }),
+      });
+
+      const result = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(result?.error ?? "Failed to update match");
+      }
+
+      if (result?.status === "MATCHED" && result.matchId) {
+        router.push(`/chat/${result.matchId}`);
+        return;
+      }
+
+      setMatches((prev) => prev.filter((m) => m.matchId !== matchId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update match");
+    } finally {
+      setActionLoading(null);
     }
-
-    setMatches((prev) => prev.filter((m) => m.matchId !== matchId));
-    setActionLoading(null);
   }
 
   if (sessionStatus === "loading" || loading) {
@@ -72,8 +94,8 @@ export default function NotifyPage() {
 
   if (matches.length === 0) {
     return (
-      <div className="px-6 pt-16 text-center">
-        <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center mx-auto mb-4">
+      <div className={`${pageFrameClass} pt-16 text-center`}>
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.04]">
           <svg
             width="20"
             height="20"
@@ -112,68 +134,80 @@ export default function NotifyPage() {
   }
 
   return (
-    <div className="px-6 py-10">
-      <h1 className="text-2xl font-semibold text-white mb-8">
-        {t("notify.title")}
-      </h1>
+    <div className={pageFrameClass}>
+      <PageHeader title={t("notify.title")} />
+      {error && (
+        <p className="mb-6 rounded-[1.25rem] bg-red-500/10 px-4 py-3 text-sm text-red-200 ring-1 ring-inset ring-red-500/[0.16]">
+          {error}
+        </p>
+      )}
       {matches.map((match) => (
-        <div
+        <Surface
           key={match.matchId}
-          className="border border-neutral-800 rounded-xl p-6 mb-5 bg-neutral-900/50"
+          className="mb-5 px-5 py-5"
         >
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-xl font-semibold text-white">
-              {match.otherPerson.name ?? "Unknown"}
-            </span>
-            {match.otherPerson.location && (
-              <span className="text-sm text-neutral-500">
-                {match.otherPerson.location}
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <span className="text-xl font-semibold text-white">
+                {match.otherPerson.name ?? "Unknown"}
               </span>
-            )}
+              {match.otherPerson.location && (
+                <p className="mt-1 text-xs text-neutral-500">
+                  {match.otherPerson.location}
+                </p>
+              )}
+            </div>
+            <span className="inline-flex items-center rounded-full bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-neutral-400 ring-1 ring-inset ring-white/[0.05]">
+              Proposal
+            </span>
           </div>
 
-          <p className="text-base leading-relaxed text-neutral-300 mb-4 p-3.5 bg-neutral-800/50 rounded-lg border-l-2 border-neutral-600">
-            {match.framingForMe}
-          </p>
-
-          {match.otherPerson.currentWork && (
-            <p className="text-sm text-neutral-400 mb-3">
-              <strong className="text-neutral-300">Working on:</strong>{" "}
-              {match.otherPerson.currentWork}
+          <SoftSurface className="px-4 py-4">
+            <p className="text-base leading-7 text-neutral-200">
+              {match.framingForMe}
             </p>
-          )}
+          </SoftSurface>
 
-          {match.otherPerson.expertise &&
-            match.otherPerson.expertise.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-5">
-                {match.otherPerson.expertise.map((e) => (
-                  <span
-                    key={e}
-                    className="text-xs px-2.5 py-1 bg-neutral-800 rounded-full text-neutral-400"
-                  >
-                    {e}
-                  </span>
-                ))}
-              </div>
+          <div className="mt-4 space-y-3">
+            {match.otherPerson.currentWork && (
+              <p className="text-sm text-neutral-400">
+                <strong className="text-neutral-300">Working on:</strong>{" "}
+                {match.otherPerson.currentWork}
+              </p>
             )}
 
-          <div className="flex gap-3">
+            {match.otherPerson.expertise &&
+              match.otherPerson.expertise.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {match.otherPerson.expertise.map((e) => (
+                    <span
+                      key={e}
+                      className="rounded-full bg-white/[0.03] px-3 py-1.5 text-xs text-neutral-400 ring-1 ring-inset ring-white/[0.05]"
+                    >
+                      {e}
+                    </span>
+                  ))}
+                </div>
+              )}
+          </div>
+
+          <div className="mt-5 flex gap-3 border-t border-white/[0.05] pt-4">
             <button
               onClick={() => handleAction(match.matchId, "confirm")}
               disabled={actionLoading === match.matchId}
-              className="flex-1 py-3 text-sm font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50"
+              className={`flex-1 ${primaryButtonClass}`}
             >
               {t("notify.yesIntroduce")}
             </button>
             <button
               onClick={() => handleAction(match.matchId, "dormant")}
               disabled={actionLoading === match.matchId}
-              className="flex-1 py-3 text-sm font-medium border border-neutral-700 text-neutral-400 rounded-lg hover:border-neutral-500 transition-colors disabled:opacity-50"
+              className={`flex-1 ${subtleButtonClass}`}
             >
               {t("notify.notNow")}
             </button>
           </div>
-        </div>
+        </Surface>
       ))}
     </div>
   );

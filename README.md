@@ -67,7 +67,7 @@ If no matches exist yet, your agent sets a **beacon** — a standing query that 
 - **Email:** Resend (account/security emails)
 - **Styling:** Tailwind CSS
 - **i18n:** next-intl (English, Chinese, Hindi)
-- **Deployment:** Docker + self-hosted / Vercel
+- **Deployment:** DigitalOcean droplet + Docker Compose + nginx
 
 ---
 

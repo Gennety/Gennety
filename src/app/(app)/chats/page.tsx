@@ -18,6 +18,7 @@ interface ChatPreview {
   lastMessage: {
     content: string;
     fromOwner: string;
+    kind: string;
     createdAt: string;
   } | null;
   unreadCount: number;
@@ -139,9 +140,10 @@ export default function ChatsPage() {
                   {chat.lastMessage
                     ? chat.lastMessage.fromOwner === session?.user?.id
                       ? t("chats.you", { message: chat.lastMessage.content })
-                      : chat.lastMessage.fromOwner === "agent_a" ||
-                        chat.lastMessage.fromOwner === "agent_b"
+                      : chat.lastMessage.kind === "AGENT_INTRO"
                       ? t("chats.agent", { message: chat.lastMessage.content })
+                      : chat.lastMessage.kind.startsWith("MODEL_ADVICE")
+                      ? t("chats.modelAdvice", { message: chat.lastMessage.content })
                       : chat.lastMessage.content
                     : t("chats.noMessages")}
                 </p>

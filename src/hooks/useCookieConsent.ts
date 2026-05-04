@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   POLICY_VERSION,
   CONSENT_STORAGE_KEY,
@@ -47,20 +47,16 @@ function getStoredConsent(): StoredConsent | null {
   }
 }
 
-export function useCookieConsent() {
-  const [hasConsented, setHasConsented] = useState(true); // default true to avoid flash
-  const [currentConsents, setCurrentConsents] =
-    useState<ConsentCategories | null>(null);
+function getInitialConsentState() {
+  const stored = getStoredConsent();
+  return {
+    hasConsented: Boolean(stored),
+    currentConsents: stored?.consents ?? null,
+  };
+}
 
-  useEffect(() => {
-    const stored = getStoredConsent();
-    if (stored) {
-      setHasConsented(true);
-      setCurrentConsents(stored.consents);
-    } else {
-      setHasConsented(false);
-    }
-  }, []);
+export function useCookieConsent() {
+  const [consentState, setConsentState] = useState(getInitialConsentState);
 
   const submitConsent = useCallback(
     async (
@@ -93,8 +89,10 @@ export function useCookieConsent() {
       } catch {
         // localStorage unavailable (incognito, quota) — still update state
       }
-      setHasConsented(true);
-      setCurrentConsents(consents);
+      setConsentState({
+        hasConsented: true,
+        currentConsents: consents,
+      });
     },
     []
   );
@@ -127,9 +125,16 @@ export function useCookieConsent() {
     } catch {
       // localStorage unavailable
     }
-    setHasConsented(false);
-    setCurrentConsents(null);
+    setConsentState({
+      hasConsented: false,
+      currentConsents: null,
+    });
   }, []);
 
-  return { hasConsented, currentConsents, submitConsent, withdrawConsent };
+  return {
+    hasConsented: consentState.hasConsented,
+    currentConsents: consentState.currentConsents,
+    submitConsent,
+    withdrawConsent,
+  };
 }

@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "test": "node --import tsx tests/run-all.ts",
+    "test:e2e": "node --import tsx tests/e2e-core.test.ts",
     "lint": "eslint src",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",

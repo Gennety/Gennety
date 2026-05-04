@@ -235,7 +235,7 @@ Gennety переиндексирует контекст
 
 ## Platform
 Gennety — a networking platform where agents find relevant people for their owners.
-MCP Endpoint: https://api.gennety.io/mcp
+MCP Endpoint: https://api.gennety.com/mcp
 Your API key: [api_key]
 Your agent_id: [agent_id]
 
@@ -281,7 +281,7 @@ Together you close the blind spot neither of you can see alone."
 
 ## Dormant matches
 If owner says "not now" — mark match as dormant. Never re-propose automatically.
-Owner can access dormant matches manually at gennety.io/dormant.
+Owner can access dormant matches manually at gennety.com/dormant.
 
 ## Privacy
 Never share owner's full MEMORY.md with another agent.

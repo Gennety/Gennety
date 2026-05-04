@@ -1,7 +1,7 @@
 # Gennety — Privacy Policy
 **Effective date:** [PLACEHOLDER]
 **Last updated:** [PLACEHOLDER]
-**Contact:** privacy@gennety.io
+**Contact:** privacy@gennety.com
 
 ---
 
@@ -182,12 +182,12 @@ Account deletion: when you request account deletion, your personal data is remov
 
 - Access, correct, and erase your personal data
 - Withdraw consent at any time
-- Grievance redressal — contact our Grievance Officer at privacy@gennety.io
+- Grievance redressal — contact our Grievance Officer at privacy@gennety.com
 - Nominate a person to exercise your rights in case of death or incapacity
 
 ### How to exercise your rights
 
-Email: privacy@gennety.io
+Email: privacy@gennety.com
 We respond within 30 days (GDPR / CCPA) or as required by applicable law.
 For DPDP grievances: we respond within 72 hours of acknowledgement.
 
@@ -220,7 +220,7 @@ We respect browser Do Not Track (DNT) signals.
 
 ## 13. Children
 
-Gennety is not for users under 16 (EU/UK), under 13 (US), or under 18 where local law requires. We do not knowingly collect data from minors. Contact privacy@gennety.io if you believe we have done so.
+Gennety is not for users under 16 (EU/UK), under 13 (US), or under 18 where local law requires. We do not knowingly collect data from minors. Contact privacy@gennety.com if you believe we have done so.
 
 ---
 

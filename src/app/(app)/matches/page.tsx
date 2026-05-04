@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import {
+  PageHeader,
+  SoftSurface,
+  Surface,
+  cx,
+  getMatteDotClass,
+  getMattePillClass,
+  pageFrameClass,
+  primaryButtonClass,
+  tabActiveClass,
+  tabBaseClass,
+  tabIdleClass,
+} from "@/components/ui/app-chrome";
 
 interface MatchItem {
   matchId: string;
@@ -77,39 +90,27 @@ export default function MatchesPage() {
       : dormantMatches;
 
   return (
-    <div className="px-6 py-10">
-      <h1 className="text-2xl font-semibold text-white mb-6">{t("matches.title")}</h1>
+    <div className={pageFrameClass}>
+      <PageHeader title={t("matches.title")} />
 
       <FreshnessIndicator state={freshnessState} />
 
-      <div className="flex gap-0 mb-6 border-b border-neutral-800">
+      <div className="mb-8 flex flex-wrap gap-2">
         <button
           onClick={() => setTab("active")}
-          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "active"
-              ? "text-white border-white"
-              : "text-neutral-500 border-transparent hover:text-neutral-300"
-          }`}
+          className={cx(tabBaseClass, tab === "active" ? tabActiveClass : tabIdleClass)}
         >
           {t("matches.active", { count: activeMatches.length })}
         </button>
         <button
           onClick={() => setTab("sent")}
-          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "sent"
-              ? "text-white border-white"
-              : "text-neutral-500 border-transparent hover:text-neutral-300"
-          }`}
+          className={cx(tabBaseClass, tab === "sent" ? tabActiveClass : tabIdleClass)}
         >
           {t("matches.sent", { count: sentMatches.length })}
         </button>
         <button
           onClick={() => setTab("dormant")}
-          className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            tab === "dormant"
-              ? "text-white border-white"
-              : "text-neutral-500 border-transparent hover:text-neutral-300"
-          }`}
+          className={cx(tabBaseClass, tab === "dormant" ? tabActiveClass : tabIdleClass)}
         >
           {t("matches.dormant", { count: dormantMatches.length })}
         </button>
@@ -159,14 +160,19 @@ export default function MatchesPage() {
       )}
 
       {displayed.map((match) => (
-        <div
+        <Surface
           key={match.matchId}
-          className="border border-neutral-800 rounded-xl p-6 mb-4 bg-neutral-900/50"
+          className="mb-4 px-5 py-5"
         >
-          <div className="flex justify-between items-center mb-3">
-            <span className="text-lg font-semibold text-white">
-              {match.otherPerson.name ?? "Unknown"}
-            </span>
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <span className="text-lg font-semibold text-white">
+                {match.otherPerson.name ?? "Unknown"}
+              </span>
+              {match.otherPerson.location ? (
+                <p className="mt-1 text-xs text-neutral-500">{match.otherPerson.location}</p>
+              ) : null}
+            </div>
             <StatusBadge
               status={match.status}
               sentWaiting={
@@ -177,36 +183,40 @@ export default function MatchesPage() {
             />
           </div>
 
-          <p className="text-sm leading-relaxed text-neutral-300 mb-3 p-3 bg-neutral-800/50 rounded-lg border-l-2 border-neutral-600">
-            {match.framingForMe}
-          </p>
-
-          {match.otherPerson.currentWork && (
-            <p className="text-xs text-neutral-400 mb-2">
-              <strong className="text-neutral-300">{t("matches.workingOn")}</strong>{" "}
-              {match.otherPerson.currentWork}
+          <SoftSurface className="px-4 py-4">
+            <p className="text-sm leading-6 text-neutral-200">
+              {match.framingForMe}
             </p>
-          )}
+          </SoftSurface>
 
-          {match.otherPerson.expertise &&
-            match.otherPerson.expertise.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {match.otherPerson.expertise.map((e) => (
-                  <span
-                    key={e}
-                    className="text-[11px] px-2 py-0.5 bg-neutral-800 rounded-full text-neutral-400"
-                  >
-                    {e}
-                  </span>
-                ))}
-              </div>
+          <div className="mt-4 space-y-3">
+            {match.otherPerson.currentWork && (
+              <p className="text-xs text-neutral-400">
+                <strong className="text-neutral-300">{t("matches.workingOn")}</strong>{" "}
+                {match.otherPerson.currentWork}
+              </p>
             )}
 
-          <div className="flex gap-3 items-center">
+            {match.otherPerson.expertise &&
+              match.otherPerson.expertise.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {match.otherPerson.expertise.map((e) => (
+                    <span
+                      key={e}
+                      className="rounded-full bg-white/[0.03] px-3 py-1.5 text-[11px] text-neutral-400 ring-1 ring-inset ring-white/[0.05]"
+                    >
+                      {e}
+                    </span>
+                  ))}
+                </div>
+              )}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-white/[0.05] pt-4">
             {match.status === "MATCHED" && match.chatId && (
               <Link
                 href={`/chat/${match.matchId}`}
-                className="inline-block px-5 py-2.5 text-sm font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors"
+                className={primaryButtonClass}
               >
                 {t("matches.openChat")}
               </Link>
@@ -223,7 +233,7 @@ export default function MatchesPage() {
               !(match.initiatedByMe && !match.confirmedByOther) && (
                 <Link
                   href="/notify"
-                  className="inline-block px-5 py-2.5 text-sm font-semibold bg-white text-black rounded-lg hover:bg-neutral-200 transition-colors"
+                  className={primaryButtonClass}
                 >
                   {t("matches.reviewProposal")}
                 </Link>
@@ -234,7 +244,7 @@ export default function MatchesPage() {
               </span>
             )}
           </div>
-        </div>
+        </Surface>
       ))}
     </div>
   );
@@ -270,7 +280,7 @@ function FreshnessIndicator({ state }: { state: string | null }) {
 
   return (
     <div
-      className={`flex items-center gap-2.5 px-4 py-3 rounded-lg border mb-6 ${config.bg}`}
+      className={`mb-8 flex items-center gap-2.5 rounded-[1.25rem] px-4 py-3 ring-1 ring-inset ${config.bg}`}
     >
       <span className={`w-2 h-2 rounded-full shrink-0 ${config.dot}`} />
       <span className={`text-sm ${config.text}`}>{config.message}</span>
@@ -289,33 +299,29 @@ function StatusBadge({
 
   const styles = sentWaiting
     ? {
-        text: "text-sky-400",
-        dot: "bg-sky-400",
-        glow: "shadow-[0_0_8px_rgba(56,189,248,0.5)]",
+        text: "text-sky-200",
+        dot: "info" as const,
       }
     : status === "MATCHED"
     ? {
-        text: "text-emerald-400",
-        dot: "bg-emerald-400",
-        glow: "shadow-[0_0_8px_rgba(52,211,153,0.6)]",
+        text: "text-emerald-200",
+        dot: "success" as const,
       }
     : status === "PROPOSED"
     ? {
-        text: "text-amber-400",
-        dot: "bg-amber-400",
-        glow: "shadow-[0_0_8px_rgba(251,191,36,0.5)]",
+        text: "text-amber-200",
+        dot: "gold" as const,
       }
     : {
-        text: "text-neutral-500",
-        dot: "bg-neutral-500",
-        glow: "",
+        text: "text-neutral-300",
+        dot: "neutral" as const,
       };
 
   const label = sentWaiting ? t("sent") : t(status.toLowerCase());
 
   return (
-    <span className={`inline-flex items-center gap-2 text-[11px] font-medium tracking-wide ${styles.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${styles.dot} ${styles.glow}`} />
+    <span className={getMattePillClass("neutral", `text-[11px] tracking-wide ${styles.text}`)}>
+      <span className={getMatteDotClass(styles.dot)} />
       {label}
     </span>
   );

@@ -41,7 +41,7 @@ The more specific the query, the better the beacon fires only when relevant.
 
 ```
 Tool: set_beacon
-MCP endpoint: https://api.gennety.io/mcp
+MCP endpoint: https://api.gennety.com/mcp
 Authorization: Bearer [your_api_key]
 
 Input: {

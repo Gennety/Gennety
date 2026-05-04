@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 export default function OnboardingConnectPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const t = useTranslations("onboarding");
+  const tCommon = useTranslations("common");
   const [prompt, setPrompt] = useState<string | null>(null);
   const [agentId, setAgentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +22,7 @@ export default function OnboardingConnectPage() {
       .then(async (res) => {
         if (!res.ok) {
           const data = await res.json().catch(() => null);
-          throw new Error(data?.error ?? "Failed to load prompt");
+          throw new Error(data?.error ?? t("failedToLoadPrompt"));
         }
         return res.json();
       })
@@ -28,10 +31,10 @@ export default function OnboardingConnectPage() {
         setAgentId(data.agent_id);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load prompt");
+        setError(err instanceof Error ? err.message : t("failedToLoadPrompt"));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   const handleCopy = async () => {
     if (!prompt) return;
@@ -64,11 +67,11 @@ export default function OnboardingConnectPage() {
             href="/"
             className="text-3xl font-bold tracking-tight text-white hover:text-neutral-300 transition-colors"
           >
-            Gennety
+            {tCommon("gennety")}
           </Link>
           {session?.user?.email && (
             <p className="mt-1 text-xs text-neutral-600">
-              {session.user.email}
+              {t("signedInAs", { email: session.user.email })}
             </p>
           )}
         </div>
@@ -76,11 +79,10 @@ export default function OnboardingConnectPage() {
         {/* Title */}
         <div className="text-center mb-8">
           <h1 className="text-xl font-semibold text-white">
-            Последний шаг — подключи агента
+            {t("step1Title")}
           </h1>
           <p className="mt-2 text-sm text-neutral-400">
-            Скопируй этот промпт и отправь его своему OpenClaw агенту в обычном чате.
-            Он всё настроит сам.
+            {t("copyPromptDesc")}
           </p>
         </div>
 
@@ -99,7 +101,7 @@ export default function OnboardingConnectPage() {
               onClick={() => window.location.reload()}
               className="text-sm text-neutral-400 hover:text-white transition-colors"
             >
-              Попробовать снова
+              {tCommon("tryAgain")}
             </button>
           </div>
         )}
@@ -116,7 +118,7 @@ export default function OnboardingConnectPage() {
             {/* Agent ID */}
             {agentId && (
               <p className="text-center text-xs text-neutral-600 mb-6">
-                agent_id: <span className="font-mono text-neutral-500">{agentId}</span>
+                {t("agentId")}: <span className="font-mono text-neutral-500">{agentId}</span>
               </p>
             )}
 
@@ -126,20 +128,20 @@ export default function OnboardingConnectPage() {
                 onClick={handleCopy}
                 className="flex-1 py-3.5 rounded-lg bg-white text-black font-semibold text-sm hover:bg-neutral-200 transition-colors"
               >
-                {copied ? "✓ Скопировано" : "Скопировать промпт"}
+                {copied ? `✓ ${tCommon("copied")}` : t("copySetupPrompt")}
               </button>
               <button
                 onClick={() => router.push("/matches")}
                 className="flex-1 py-3.5 rounded-lg border border-neutral-700 text-neutral-300 font-medium text-sm hover:border-neutral-500 hover:text-white transition-colors"
               >
-                Уже отправил →
+                {t("alreadySent")}
               </button>
             </div>
 
             {/* Alternative agents */}
             <div className="border-t border-neutral-800 pt-6 text-center">
               <p className="text-xs text-neutral-600 mb-3">
-                Не используешь OpenClaw?
+                {t("preferManual")}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <span className="text-xs text-neutral-500 hover:text-neutral-300 cursor-default transition-colors">
@@ -151,14 +153,14 @@ export default function OnboardingConnectPage() {
                 </span>
                 <span className="text-neutral-800">·</span>
                 <span className="text-xs text-neutral-500 hover:text-neutral-300 cursor-default transition-colors">
-                  Другой агент
+                  {t("otherAgent")}
                 </span>
                 <span className="text-neutral-800">·</span>
                 <Link
                   href="/onboarding"
                   className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
                 >
-                  Ручной ввод
+                  {t("preferManual")}
                 </Link>
               </div>
             </div>

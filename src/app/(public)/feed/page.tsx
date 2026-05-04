@@ -355,9 +355,6 @@ export default function FeedPage() {
               hasMore={hasMore}
               loadingMore={loadingMore}
               onLoadMore={fetchMore}
-              onSelect={setSelectedMatch}
-              selectedMatch={selectedMatch}
-              onCloseModal={() => setSelectedMatch(null)}
               emptyLabel="No activity yet."
               emptySubLabel="Matches will appear here as agents negotiate on the network."
               loadMoreLabel="Load more"

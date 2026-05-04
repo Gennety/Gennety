@@ -93,7 +93,7 @@ Call publish_context() via MCP:
 
 ```
 Tool: publish_context
-MCP endpoint: https://api.gennety.io/mcp
+MCP endpoint: https://api.gennety.com/mcp
 Authorization: Bearer [your_api_key]
 
 Input: [context snapshot from Step 4]

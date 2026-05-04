@@ -3,6 +3,15 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
+import {
+  getMatteDotClass,
+  getMattePillClass,
+  MetricCard,
+  PageHeader,
+  SoftSurface,
+  Surface,
+  pageFrameClass,
+} from "@/components/ui/app-chrome";
 
 interface ProfileData {
   name: string | null;
@@ -41,7 +50,7 @@ interface ProfileData {
   agent: {
     displayName: string | null;
     isActive: boolean;
-    lastActiveAt: string;
+    lastActiveAt: string | null;
   };
 }
 
@@ -56,9 +65,12 @@ export default function ProfilePage() {
     if (sessionStatus !== "authenticated") return;
 
     fetch("/api/profile")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load profile");
-        return r.json();
+      .then(async (r) => {
+        const data = await r.json().catch(() => null);
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Failed to load profile");
+        }
+        return data;
       })
       .then((data) => {
         setProfile(data);
@@ -92,38 +104,32 @@ export default function ProfilePage() {
   const rep = profile.reputation;
 
   return (
-    <div className="px-6 py-10">
+    <div className={pageFrameClass}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">
-            {ctx?.ownerName ?? profile.name ?? t("profile.title")}
-          </h1>
-          {ctx?.ownerProfession && (
-            <p className="text-sm text-neutral-400 mt-1">
-              {ctx.ownerProfession}
-              {ctx.ownerDomain ? ` \u00b7 ${ctx.ownerDomain}` : ""}
-            </p>
-          )}
-          {(ctx?.location ?? ctx?.ownerLocation) && (
-            <p className="text-xs text-neutral-500 mt-1">
-              {ctx?.location ?? ctx?.ownerLocation}
-            </p>
-          )}
-        </div>
-        <FreshnessBadge state={ctx?.freshnessState} />
-      </div>
+      <PageHeader
+        title={ctx?.ownerName ?? profile.name ?? t("profile.title")}
+        subtitle={
+          [
+            ctx?.ownerProfession,
+            ctx?.ownerDomain,
+            ctx?.location ?? ctx?.ownerLocation,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+        action={<FreshnessBadge state={ctx?.freshnessState} />}
+      />
 
       {/* No context yet */}
       {!ctx && (
-        <div className="border border-neutral-800 rounded-xl p-8 text-center bg-neutral-900/50 mb-6">
+        <Surface className="mb-6 px-8 py-8 text-center">
           <p className="text-sm text-neutral-400 mb-2">
             {t("profile.noContext")}
           </p>
           <p className="text-xs text-neutral-600">
             {t("profile.noContextDesc")}
           </p>
-        </div>
+        </Surface>
       )}
 
       {ctx && (
@@ -142,7 +148,7 @@ export default function ProfilePage() {
                 {ctx.expertise.map((tag) => (
                   <span
                     key={tag}
-                    className="text-xs px-3 py-1.5 bg-neutral-800 rounded-full text-neutral-300 border border-neutral-700/50"
+                    className={getMattePillClass("muted", "text-xs")}
                   >
                     {tag}
                   </span>
@@ -172,24 +178,24 @@ export default function ProfilePage() {
           {(ctx.recentWins || ctx.recentProblems) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
               {ctx.recentWins && (
-                <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
+                <SoftSurface className="px-4 py-4">
                   <h3 className="text-xs font-medium text-green-400/80 mb-2">
                     {t("profile.recentWins")}
                   </h3>
                   <p className="text-sm text-neutral-300 leading-relaxed">
                     {ctx.recentWins}
                   </p>
-                </div>
+                </SoftSurface>
               )}
               {ctx.recentProblems && (
-                <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
+                <SoftSurface className="px-4 py-4">
                   <h3 className="text-xs font-medium text-amber-400/80 mb-2">
                     {t("profile.currentChallenges")}
                   </h3>
                   <p className="text-sm text-neutral-300 leading-relaxed">
                     {ctx.recentProblems}
                   </p>
-                </div>
+                </SoftSurface>
               )}
             </div>
           )}
@@ -257,7 +263,7 @@ export default function ProfilePage() {
                   {ctx.agentDomains.map((d) => (
                     <span
                       key={d}
-                      className="text-xs px-2.5 py-1 bg-neutral-800/70 rounded-full text-neutral-400 border border-neutral-700/30"
+                      className={getMattePillClass("muted", "px-2.5 py-1 text-xs")}
                     >
                       {d}
                     </span>
@@ -270,13 +276,13 @@ export default function ProfilePage() {
       )}
 
       {/* Reputation & Stats */}
-      <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50 mb-6">
-        <h2 className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-4">
+      <Surface className="mb-6 px-5 py-5">
+        <h2 className="mb-4 text-xs font-medium uppercase tracking-wider text-neutral-500">
           {t("profile.reputation")}
         </h2>
         <div className="grid grid-cols-3 gap-4">
-          <StatBlock value={rep.score.toFixed(0)} label={t("profile.score")} />
-          <StatBlock
+          <MetricCard value={rep.score.toFixed(0)} label={t("profile.score")} />
+          <MetricCard
             value={
               rep.totalProposed > 0
                 ? `${(rep.acceptanceRate * 100).toFixed(0)}%`
@@ -284,9 +290,9 @@ export default function ProfilePage() {
             }
             label={t("profile.acceptance")}
           />
-          <StatBlock value={rep.completedMatches} label={t("profile.matchesLabel")} />
+          <MetricCard value={rep.completedMatches} label={t("profile.matchesLabel")} />
         </div>
-      </div>
+      </Surface>
 
       {/* Meta footer */}
       <div className="flex items-center justify-between text-xs text-neutral-600 pt-2">
@@ -320,8 +326,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50 mb-4">
-      <h2 className="text-xs font-medium text-neutral-500 uppercase tracking-wider mb-3">
+    <div className="mb-4 rounded-[1.5rem] bg-neutral-950/55 p-5 ring-1 ring-inset ring-white/[0.06]">
+      <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-neutral-500">
         {title}
       </h2>
       {children}
@@ -342,9 +348,15 @@ function FreshnessBadge({ state }: { state?: string }) {
   const c = config[state] ?? config.INACTIVE!;
 
   return (
-    <span className={`flex items-center gap-2 text-xs ${c.color}`}>
+    <span className={getMattePillClass("neutral", `text-xs ${c.color}`)}>
       <span
-        className={`w-1.5 h-1.5 rounded-full ${c.color.replace("text-", "bg-")}`}
+        className={getMatteDotClass(
+          state === "ACTIVE"
+            ? "success"
+            : state === "AGING" || state === "STALE"
+            ? "warning"
+            : "muted"
+        )}
       />
       {c.label}
     </span>
@@ -360,24 +372,9 @@ function GoalBadge({ goal }: { goal: string }) {
   };
 
   return (
-    <span className="inline-block mt-2 text-xs px-3 py-1 rounded-full bg-white/5 text-neutral-400 border border-neutral-700/40">
+    <span className={getMattePillClass("muted", "mt-2 inline-flex text-xs")}>
       {labels[goal] ?? goal}
     </span>
-  );
-}
-
-function StatBlock({
-  value,
-  label,
-}: {
-  value: string | number;
-  label: string;
-}) {
-  return (
-    <div className="text-center">
-      <span className="block text-xl font-semibold text-white">{value}</span>
-      <span className="text-xs text-neutral-500">{label}</span>
-    </div>
   );
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { locales, localeNames, type Locale } from "@/i18n/config";
+import { localeCookieName, locales, localeNames, type Locale } from "@/i18n/config";
 
 export function LanguageSwitcher({
   compact,
@@ -13,6 +13,7 @@ export function LanguageSwitcher({
   dropUp?: boolean;
 }) {
   const locale = useLocale() as Locale;
+  const tSettings = useTranslations("settings");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -27,16 +28,29 @@ export function LanguageSwitcher({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  async function switchLocale(next: Locale) {
-    if (next === locale) {
+  const hasExplicitLocale =
+    typeof document === "undefined"
+      ? true
+      : document.cookie.split("; ").some((cookie) => cookie.startsWith(`${localeCookieName}=`));
+
+  const selectedOption: Locale | "auto" = hasExplicitLocale ? locale : "auto";
+
+  async function switchLocale(next: Locale | "auto") {
+    if (next === selectedOption) {
       setOpen(false);
       return;
     }
-    await fetch("/api/locale", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ locale: next }),
-    });
+
+    if (next === "auto") {
+      document.cookie = `${localeCookieName}=; path=/; max-age=0`;
+    } else {
+      await fetch("/api/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: next }),
+      });
+    }
+
     setOpen(false);
     router.refresh();
   }
@@ -66,18 +80,43 @@ export function LanguageSwitcher({
         }`}
       >
         <div className="py-1">
+          <button
+            onClick={() => switchLocale("auto")}
+            className={`w-full text-left px-3.5 py-2 text-sm flex items-center justify-between transition-colors ${
+              selectedOption === "auto"
+                ? "text-white"
+                : "text-neutral-500 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <span>{tSettings("languageAuto")}</span>
+            {selectedOption === "auto" && (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-neutral-400"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
           {locales.map((l) => (
             <button
               key={l}
               onClick={() => switchLocale(l)}
               className={`w-full text-left px-3.5 py-2 text-sm flex items-center justify-between transition-colors ${
-                l === locale
+                l === locale && selectedOption !== "auto"
                   ? "text-white"
                   : "text-neutral-500 hover:text-white hover:bg-white/[0.04]"
               }`}
             >
               <span>{localeNames[l]}</span>
-              {l === locale && (
+              {l === locale && selectedOption !== "auto" && (
                 <svg
                   width="14"
                   height="14"

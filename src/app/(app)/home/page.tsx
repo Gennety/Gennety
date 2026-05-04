@@ -4,9 +4,23 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import {
+  LiveStatusDot,
+  MetricCard,
+  PageHeader,
+  SectionTitle,
+  SoftSurface,
+  Surface,
+  cx,
+  getMatteDotClass,
+  getMattePillClass,
+  pageFrameClass,
+  subtleButtonSmallClass,
+} from "@/components/ui/app-chrome";
 
 interface Stats {
   totalMembers: number;
+  actualMembers: number;
   totalMatches: number;
   matchesThisWeek: number;
   activeNegotiations: number;
@@ -25,6 +39,13 @@ interface MyData {
   pendingCount: number;
   freshnessState: string | null;
   agentActive: boolean;
+  privacySync: {
+    pending: boolean;
+    searchPaused: boolean;
+    changedAt: string;
+    summary: string | null;
+    action: string | null;
+  } | null;
 }
 
 export default function HomePage() {
@@ -63,6 +84,7 @@ export default function HomePage() {
             !matchesData.freshnessState ||
             matchesData.freshnessState === "ACTIVE" ||
             matchesData.freshnessState === "AGING",
+          privacySync: matchesData.privacySync ?? null,
         });
         setLoading(false);
       })
@@ -80,125 +102,163 @@ export default function HomePage() {
   const userName = session?.user?.name?.split(" ")[0] || "there";
 
   return (
-    <div className="px-6 py-10">
-      {/* Greeting */}
-      <h1 className="text-2xl font-semibold text-white mb-1">
-        {t("home.welcomeBack", { name: userName })}
-      </h1>
-      <p className="text-sm text-neutral-500 mb-8">
-        {t("home.networkStatus")}
-      </p>
+    <div className={pageFrameClass}>
+      <PageHeader
+        title={t("home.welcomeBack", { name: userName })}
+        subtitle={t("home.networkStatus")}
+      />
 
-      {/* Agent Status Card */}
-      <div className="border border-neutral-800 rounded-xl p-5 mb-6 bg-neutral-900/50">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-neutral-300">{t("home.yourAgent")}</h2>
-          <AgentStatusBadge
-            active={myData?.agentActive ?? false}
-            state={myData?.freshnessState}
-          />
+      {myData?.privacySync?.pending && (
+        <div
+          className={`mb-8 rounded-[1.5rem] p-4 ring-1 ring-inset ${
+            myData.privacySync.searchPaused
+              ? "bg-amber-950/18 ring-amber-500/[0.14]"
+              : "bg-sky-950/18 ring-sky-500/[0.14]"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p
+                className={`text-sm font-medium ${
+                  myData.privacySync.searchPaused ? "text-amber-200" : "text-sky-200"
+                }`}
+              >
+                {myData.privacySync.searchPaused
+                  ? "Your privacy settings changed. Search is paused until your agent republishes a safe context."
+                  : "Your agent is refreshing its published context for your latest privacy settings."}
+              </p>
+              {myData.privacySync.summary && (
+                <p className="mt-2 text-xs leading-relaxed text-neutral-300">
+                  {myData.privacySync.summary}
+                </p>
+              )}
+            </div>
+            <Link
+              href="/settings"
+              className={cx(subtleButtonSmallClass, "shrink-0")}
+            >
+              Review settings
+            </Link>
+          </div>
         </div>
+      )}
 
-        {/* Progress Steps */}
-        <div className="flex items-center gap-0 mb-4">
-          <ProgressStep
-            step={1}
-            label={t("home.profileCreated")}
-            done={true}
-          />
-          <ProgressConnector done={myData ? myData.matchCount > 0 || myData.pendingCount > 0 : false} />
-          <ProgressStep
-            step={2}
-            label={t("home.agentSearching")}
-            done={myData ? myData.matchCount > 0 || myData.pendingCount > 0 : false}
-            active={myData ? myData.matchCount === 0 && myData.pendingCount === 0 : true}
-          />
-          <ProgressConnector done={(myData?.matchCount ?? 0) > 0} />
-          <ProgressStep
-            step={3}
-            label={t("home.firstMatch")}
-            done={(myData?.matchCount ?? 0) > 0}
-            active={(myData?.pendingCount ?? 0) > 0 && (myData?.matchCount ?? 0) === 0}
-          />
-        </div>
+      <Surface className="mb-8 px-5 py-5">
+        <SectionTitle
+          title={t("home.yourAgent")}
+          action={
+            <AgentStatusBadge
+              active={myData?.agentActive ?? false}
+              state={myData?.freshnessState}
+            />
+          }
+        />
 
-        {/* Quick Stats for User */}
-        <div className="flex gap-4 pt-3 border-t border-neutral-800">
-          <Link
-            href="/matches"
-            className="flex-1 text-center p-3 rounded-lg hover:bg-neutral-800/50 transition-colors"
-          >
-            <span className="block text-xl font-semibold text-white">
-              {myData?.matchCount ?? 0}
-            </span>
-            <span className="text-xs text-neutral-500">{t("home.activeMatches")}</span>
-          </Link>
-          <Link
-            href="/notify"
-            className="flex-1 text-center p-3 rounded-lg hover:bg-neutral-800/50 transition-colors"
-          >
-            <span className="block text-xl font-semibold text-white">
-              {myData?.pendingCount ?? 0}
-            </span>
-            <span className="text-xs text-neutral-500">{t("home.pendingProposals")}</span>
-          </Link>
-        </div>
-      </div>
+        <SoftSurface className="px-4 py-4">
+          <div className="flex items-center gap-0 mb-5">
+            <ProgressStep
+              step={1}
+              label={t("home.profileCreated")}
+              done={true}
+            />
+            <ProgressConnector done={myData ? myData.matchCount > 0 || myData.pendingCount > 0 : false} />
+            <ProgressStep
+              step={2}
+              label={t("home.agentSearching")}
+              done={myData ? myData.matchCount > 0 || myData.pendingCount > 0 : false}
+              active={myData ? myData.matchCount === 0 && myData.pendingCount === 0 : true}
+            />
+            <ProgressConnector done={(myData?.matchCount ?? 0) > 0} />
+            <ProgressStep
+              step={3}
+              label={t("home.firstMatch")}
+              done={(myData?.matchCount ?? 0) > 0}
+              active={(myData?.pendingCount ?? 0) > 0 && (myData?.matchCount ?? 0) === 0}
+            />
+          </div>
 
-      {/* Network Stats */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <StatCard
+          <div className="grid grid-cols-1 gap-3 border-t border-white/[0.05] pt-4 sm:grid-cols-2">
+            <Link
+              href="/matches"
+              className="rounded-[1.1rem] bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.05]"
+            >
+              <div className="text-[1.75rem] font-semibold leading-none tracking-[-0.03em] text-white">
+                {myData?.matchCount ?? 0}
+              </div>
+              <div className="mt-2 text-xs text-neutral-500">{t("home.activeMatches")}</div>
+            </Link>
+            <Link
+              href="/notify"
+              className="rounded-[1.1rem] bg-white/[0.03] px-4 py-4 transition hover:bg-white/[0.05]"
+            >
+              <div className="text-[1.75rem] font-semibold leading-none tracking-[-0.03em] text-white">
+                {myData?.pendingCount ?? 0}
+              </div>
+              <div className="mt-2 text-xs text-neutral-500">{t("home.pendingProposals")}</div>
+            </Link>
+          </div>
+        </SoftSurface>
+      </Surface>
+
+      <div className="mb-8 grid grid-cols-2 gap-3">
+        <MetricCard
           value={stats?.totalMembers ?? 0}
           label={t("home.membersInNetwork")}
         />
-        <StatCard
+        <MetricCard
           value={stats?.totalMatches ?? 0}
           label={t("home.matchesMade")}
         />
-        <StatCard
+        <MetricCard
           value={stats?.matchesThisWeek ?? 0}
           label={t("home.matchesThisWeek")}
         />
-        <StatCard
-          value={stats?.activeNegotiations ?? 0}
+        <MetricCard
+          value={
+            <div className="flex items-center gap-2">
+              <span>{stats?.activeNegotiations ?? 0}</span>
+              {(stats?.activeNegotiations ?? 0) > 0 ? (
+                <span className="relative mt-1 h-1.5 w-1.5 rounded-full bg-white">
+                  <span className="absolute inset-0 rounded-full bg-white animate-ping opacity-75" />
+                </span>
+              ) : null}
+            </div>
+          }
           label={t("home.negotiationsNow")}
-          pulse={true}
         />
       </div>
 
-      {/* Top Expertise Tags */}
       {stats && stats.topExpertise.length > 0 && (
-        <div className="border border-neutral-800 rounded-xl p-5 mb-6 bg-neutral-900/50">
-          <h2 className="text-sm font-medium text-neutral-300 mb-3">
-            {t("home.popularExpertise")}
-          </h2>
+        <Surface className="mb-8 px-5 py-5">
+          <SectionTitle
+            eyebrow="Network"
+            title={t("home.popularExpertise")}
+            subtitle="Live patterns across the network right now."
+          />
           <div className="flex flex-wrap gap-2">
             {stats.topExpertise.map(({ tag, count }) => (
               <span
                 key={tag}
-                className="text-xs px-3 py-1.5 bg-neutral-800 rounded-full text-neutral-400 border border-neutral-700/50"
+                className="rounded-full bg-white/[0.03] px-3 py-1.5 text-xs text-neutral-400 ring-1 ring-inset ring-white/[0.05]"
               >
                 {tag}
                 <span className="ml-1.5 text-neutral-600">{count}</span>
               </span>
             ))}
           </div>
-        </div>
+        </Surface>
       )}
 
-      {/* Recent Matches Feed — Social Proof */}
-      <div className="border border-neutral-800 rounded-xl p-5 bg-neutral-900/50">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-neutral-300">
-            {t("home.recentMatches")}
-          </h2>
-          <Link
-            href="/activity"
-            className="text-xs text-neutral-500 hover:text-white transition-colors"
-          >
-            {t("common.viewAll")} &rarr;
-          </Link>
-        </div>
+      <Surface className="px-5 py-5">
+        <SectionTitle
+          eyebrow="Recent activity"
+          title={t("home.recentMatches")}
+          action={
+            <Link href="/activity" className={subtleButtonSmallClass}>
+              {t("common.viewAll")}
+            </Link>
+          }
+        />
 
         {stats && stats.recentMatches.length > 0 ? (
           <div className="space-y-3">
@@ -207,11 +267,11 @@ export default function HomePage() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-neutral-600 py-4 text-center">
+          <p className="py-6 text-center text-sm text-neutral-600">
             {t("home.matchesWillAppear")}
           </p>
         )}
-      </div>
+      </Surface>
     </div>
   );
 }
@@ -235,17 +295,15 @@ function AgentStatusBadge({
         ? t("home.sleeping")
         : t("freshness.inactive");
     return (
-      <span className="flex items-center gap-2 text-xs text-amber-400">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+      <span className={getMattePillClass("warning", "text-xs")}>
+        <span className={getMatteDotClass("warning")} />
         {message}
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-2 text-xs text-green-400">
-      <span className="relative w-1.5 h-1.5 rounded-full bg-green-400">
-        <span className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-75" />
-      </span>
+    <span className={getMattePillClass("success", "text-xs")}>
+      <LiveStatusDot tone="success" />
       {t("home.activeSearching")}
     </span>
   );
@@ -265,12 +323,12 @@ function ProgressStep({
   return (
     <div className="flex flex-col items-center flex-1 min-w-0">
       <div
-        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium mb-1.5 ${
+        className={`mb-1.5 flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
           done
-            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+            ? "bg-emerald-950/70 text-emerald-200"
             : active
-            ? "bg-white/10 text-white border border-white/20"
-            : "bg-neutral-800 text-neutral-600 border border-neutral-700"
+            ? "bg-white/[0.08] text-white"
+            : "bg-white/[0.04] text-neutral-600"
         }`}
       >
         {done ? (
@@ -289,7 +347,7 @@ function ProgressStep({
       </div>
       <span
         className={`text-[11px] text-center leading-tight ${
-          done ? "text-green-400/70" : active ? "text-neutral-300" : "text-neutral-600"
+          done ? "text-emerald-300/80" : active ? "text-neutral-300" : "text-neutral-600"
         }`}
       >
         {label}
@@ -301,34 +359,10 @@ function ProgressStep({
 function ProgressConnector({ done }: { done: boolean }) {
   return (
     <div
-      className={`flex-1 h-px mt-[-14px] ${
-        done ? "bg-green-500/30" : "bg-neutral-800"
+      className={`mt-[-14px] h-px flex-1 ${
+        done ? "bg-green-500/24" : "bg-white/[0.06]"
       }`}
     />
-  );
-}
-
-function StatCard({
-  value,
-  label,
-  pulse,
-}: {
-  value: number;
-  label: string;
-  pulse?: boolean;
-}) {
-  return (
-    <div className="border border-neutral-800 rounded-xl p-4 bg-neutral-900/50">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl font-semibold text-white">{value}</span>
-        {pulse && value > 0 && (
-          <span className="relative w-1.5 h-1.5 rounded-full bg-white mt-1">
-            <span className="absolute inset-0 rounded-full bg-white animate-ping opacity-75" />
-          </span>
-        )}
-      </div>
-      <span className="text-xs text-neutral-500">{label}</span>
-    </div>
   );
 }
 
@@ -340,14 +374,14 @@ function RecentMatchCard({
   const timeAgo = match.matchedAt ? getTimeAgo(match.matchedAt) : "";
 
   return (
-    <div className="p-3.5 rounded-lg bg-neutral-800/30 border border-neutral-800/50">
+    <SoftSurface className="px-4 py-4">
       {/* Who matched */}
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-6 h-6 rounded-full bg-neutral-700/50 flex items-center justify-center text-[10px] font-mono text-neutral-400 flex-shrink-0">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-[10px] font-mono text-neutral-400">
           {match.personA.displayName.slice(0, 1).toUpperCase()}
         </div>
         <span className="text-[10px] text-neutral-600">&harr;</span>
-        <div className="w-6 h-6 rounded-full bg-neutral-700/50 flex items-center justify-center text-[10px] font-mono text-neutral-400 flex-shrink-0">
+        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-[10px] font-mono text-neutral-400">
           {match.personB.displayName.slice(0, 1).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
@@ -367,10 +401,10 @@ function RecentMatchCard({
       </div>
 
       {/* Why they matched */}
-      <p className="text-xs text-neutral-400 leading-relaxed line-clamp-2 italic">
+      <p className="text-xs leading-relaxed text-neutral-400 line-clamp-2">
         &ldquo;{match.overlapSummary}&rdquo;
       </p>
-    </div>
+    </SoftSurface>
   );
 }
 

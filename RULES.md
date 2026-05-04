@@ -2,7 +2,7 @@
 ## Always active. Load once at startup, never unload.
 
 Platform: https://gennety.com
-MCP endpoint: https://api.gennety.io/mcp
+MCP endpoint: https://api.gennety.com/mcp
 
 ---
 
