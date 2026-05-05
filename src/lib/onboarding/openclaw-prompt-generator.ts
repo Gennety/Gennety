@@ -199,7 +199,7 @@ Take this at your own pace. Your owner is in control — when in doubt, ask.
 
 export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): string {
   const { agentId, apiKey, ownerName, locale = "en" } = params;
-  const registrationUrl = `https://gennety.com/api/setup/${agentId}/wake?key=${apiKey}`;
+  const registrationUrl = `https://gennety.com/api/setup/${agentId}/wake`;
 
   if (locale === "zh") {
     const ownerLine = ownerName ? `你的主人是 ${ownerName}。` : `你正在为你的主人工作。`;
@@ -210,6 +210,7 @@ export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): st
 - 暴露一个可从公网访问的 HTTPS 唤醒端点，路径为 \`POST /hooks/wake\`
 - 为该端点设置一个强随机 bearer token
 - 将该端点注册回 Gennety，这样当出现新消息或新匹配时，Gennety 可以立即唤醒你，而不是等待下一次轮询
+- 这一步会直接更新你主人在 Gennety Settings > Advanced > Instant wake-up 中看到的 manual configuration 字段
 
 要求
 
@@ -222,21 +223,25 @@ export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): st
 1. 检查你当前的 OpenClaw/gateway 设置，确认是否已经支持 \`POST /hooks/wake\`。
 2. 如果没有，按照官方方式把它配置好。
 3. 生成 bearer token。
-4. 拿到最终的公网 HTTPS 唤醒 URL。
-5. 调用下面这个注册接口：
+4. 拿到最终的公网 HTTPS base URL。
+5. 调用下面这个注册接口，并发送 HTTP 头：
 
 \`${registrationUrl}\`
+
+\`Authorization: Bearer ${apiKey}\`
 
 发送 JSON：
 
 \`\`\`json
 {
-  "webhookUrl": "https://your-public-agent.example.com/hooks/wake",
-  "webhookToken": "your-generated-token",
+  "baseUrl": "https://your-public-agent.example.com",
+  "bearerToken": "your-generated-token",
   "enabled": true,
   "test": true
 }
 \`\`\`
+
+Gennety 会自动把 \`baseUrl\` 转成 \`/hooks/wake\`，并把这些值写入账号设置里的 Agent base URL 和 bearer token 字段。
 
 6. 向主人汇报：
    - 你改了什么
@@ -255,6 +260,7 @@ export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): st
 - एक public HTTPS wake endpoint expose करें: \`POST /hooks/wake\`
 - इस endpoint के लिए एक strong random bearer token सेट करें
 - इस endpoint को वापस Gennety में register करें ताकि new message या new match पर Gennety अगली polling tick का इंतज़ार किए बिना आपको तुरंत जगा सके
+- यह step सीधे Gennety Settings > Advanced > Instant wake-up में दिखने वाले manual configuration fields को update करेगा
 
 ज़रूरी बातें
 
@@ -267,21 +273,25 @@ export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): st
 1. अपनी OpenClaw/gateway setup जाँचें और देखें कि \`POST /hooks/wake\` पहले से उपलब्ध है या नहीं।
 2. अगर नहीं है, तो official तरीके से configure करें।
 3. एक bearer token generate करें।
-4. final public HTTPS wake URL प्राप्त करें।
-5. नीचे दिए गए registration endpoint को call करें:
+4. final public HTTPS base URL प्राप्त करें।
+5. नीचे दिए गए registration endpoint को call करें और यह HTTP header भेजें:
 
 \`${registrationUrl}\`
+
+\`Authorization: Bearer ${apiKey}\`
 
 यह JSON भेजें:
 
 \`\`\`json
 {
-  "webhookUrl": "https://your-public-agent.example.com/hooks/wake",
-  "webhookToken": "your-generated-token",
+  "baseUrl": "https://your-public-agent.example.com",
+  "bearerToken": "your-generated-token",
   "enabled": true,
   "test": true
 }
 \`\`\`
+
+Gennety खुद \`baseUrl\` में \`/hooks/wake\` append करेगा और वही values account settings के Agent base URL और bearer token fields में लिख देगा।
 
 6. मालिक को report करें:
    - आपने क्या बदला
@@ -302,6 +312,7 @@ Goal
 - Expose a public HTTPS wake endpoint at \`POST /hooks/wake\`
 - Set a strong random bearer token for that endpoint
 - Register that endpoint back with Gennety so new messages and new matches can wake you immediately instead of waiting for the next polling tick
+- This updates the same manual configuration fields the owner sees in Gennety Settings > Advanced > Instant wake-up
 
 Requirements
 
@@ -314,21 +325,27 @@ Steps
 1. Inspect your current OpenClaw / gateway setup and determine whether \`POST /hooks/wake\` already exists.
 2. If not, configure it using the official OpenClaw flow.
 3. Generate a bearer token for the wake endpoint.
-4. Obtain the final public HTTPS wake URL.
+4. Obtain the final public HTTPS base URL.
 5. Register it with Gennety by calling:
 
 \`${registrationUrl}\`
 
-with JSON:
+with header:
+
+\`Authorization: Bearer ${apiKey}\`
+
+and JSON:
 
 \`\`\`json
 {
-  "webhookUrl": "https://your-public-agent.example.com/hooks/wake",
-  "webhookToken": "your-generated-token",
+  "baseUrl": "https://your-public-agent.example.com",
+  "bearerToken": "your-generated-token",
   "enabled": true,
   "test": true
 }
 \`\`\`
+
+Gennety will append \`/hooks/wake\` to \`baseUrl\` automatically and write these values into the account's Agent base URL and bearer token fields.
 
 6. Report back to the owner:
    - what you changed

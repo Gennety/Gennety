@@ -5,7 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useTranslations, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
 import { locales, localeNames, type Locale } from "@/i18n/config";
-import { LiveStatusDot, cx, getMattePillClass } from "@/components/ui/app-chrome";
+import { LiveStatusDot, cx, getMattePillClass, pageFrameClass } from "@/components/ui/app-chrome";
 
 /* ── Constants ── */
 
@@ -143,7 +143,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="px-6 py-10 max-w-2xl">
+    <div className={pageFrameClass}>
       <h1 className="text-2xl font-semibold text-white mb-8">{t("settings.title")}</h1>
 
       {/* P0 Sections */}
@@ -844,7 +844,7 @@ function getInstantWakeStatus(settings: Pick<
     return {
       label: "Needs setup",
       tone: "bg-amber-950/60 text-amber-200",
-      detail: "Add a public base URL and bearer token, or let your OpenClaw set it up for you.",
+      detail: "Add a public base URL and bearer token manually, or let your OpenClaw write these settings for you automatically.",
     };
   }
 
@@ -1118,8 +1118,8 @@ function InstantWakeSection({
             Recommended setup
           </p>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
-            Let your OpenClaw configure instant wake-up for you and register it back
-            with Gennety automatically.
+            Let your OpenClaw configure instant wake-up for you and write the
+            same base URL and bearer token fields into Gennety automatically.
           </p>
         </div>
 
@@ -1127,7 +1127,7 @@ function InstantWakeSection({
           <p className="text-sm font-medium text-white">OpenClaw Prompt</p>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
             Copy this prompt and send it to your OpenClaw. It will configure
-            instant wake-up automatically.
+            instant wake-up and fill these settings automatically.
           </p>
 
           {promptError && <p className="mt-3 text-xs text-red-400">{promptError}</p>}
@@ -1164,7 +1164,9 @@ function InstantWakeSection({
         <div className="space-y-3">
           <p className="text-xs text-neutral-500 leading-relaxed">
             Manual path if you already know your agent&apos;s public base URL and bearer
-            token. Gennety will use <code className="text-neutral-400 font-mono">{WAKE_PATH}</code> automatically.
+            token. This is the same configuration your OpenClaw can write through
+            the setup API from the prompt above. Gennety will use{" "}
+            <code className="text-neutral-400 font-mono">{WAKE_PATH}</code> automatically.
           </p>
 
           <label className="block">

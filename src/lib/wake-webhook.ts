@@ -1,5 +1,7 @@
 import { isIP } from "node:net";
 
+export const WAKE_WEBHOOK_PATH = "/hooks/wake";
+
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "127.0.0.1",
@@ -42,6 +44,19 @@ function isPrivateIpv6(hostname: string) {
     normalized.startsWith("fea") ||
     normalized.startsWith("feb")
   );
+}
+
+export function normalizeWakeBaseUrl(input: string): string {
+  const trimmed = input.trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.endsWith(WAKE_WEBHOOK_PATH)
+    ? trimmed.slice(0, -WAKE_WEBHOOK_PATH.length)
+    : trimmed;
+}
+
+export function buildWakeWebhookUrl(baseUrl: string): string {
+  const normalized = normalizeWakeBaseUrl(baseUrl);
+  return normalized ? `${normalized}${WAKE_WEBHOOK_PATH}` : "";
 }
 
 export function getWakeWebhookUrlError(rawUrl: string): string | null {
