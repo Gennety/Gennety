@@ -280,6 +280,10 @@ function createFakePrisma() {
       wakeWebhookEnabled: false,
       webhookUrl: null,
       webhookToken: null,
+      wakeStreamLastConnectedAt: null,
+      wakeStreamLastSeenAt: null,
+      wakeStreamLastDisconnectedAt: null,
+      wakeStreamLastError: null,
     };
     db.owners.push(owner);
     db.agents.push(agent);
@@ -644,6 +648,7 @@ function createFakePrisma() {
           .filter(
             (beacon) =>
               beacon.isActive &&
+              !beacon.triggeredAt &&
               agentById(beacon.agentId)?.searchPaused !== true &&
               beacon.agentId !== publishingAgentId &&
               (!beacon.networkingGoalFilter || beacon.networkingGoalFilter === effectiveGoal)
@@ -658,6 +663,7 @@ function createFakePrisma() {
           .map(({ beacon }) => ({
             id: beacon.id,
             agent_id: beacon.agentId,
+            owner_id: agentById(beacon.agentId)?.ownerId,
             context_query: beacon.contextQuery,
           }));
       }

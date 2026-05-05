@@ -8,6 +8,7 @@ import { syncNetworkingGoalForAgent } from "@/lib/services/networking-goal-sync"
 import { setAgentSearchPaused } from "@/lib/services/agent-search";
 import { SettingsUpdateSchema } from "@/types/settings";
 import { getWakeWebhookUrlError } from "@/lib/wake-webhook";
+import { getWakeStreamConnectionCount, hasLiveWakeStream } from "@/lib/services/agent-wake-stream";
 import { ZodError } from "zod";
 
 // GET /api/settings — load current settings for the authenticated owner
@@ -31,6 +32,13 @@ export async function GET() {
     }
 
     const privacySync = owner.agent ? await getPrivacySyncStatus(owner.agent.id) : null;
+    const wakeStreamConnected = owner.agent ? hasLiveWakeStream(owner.agent.id) : false;
+    const wakeStreamConnectionCount = owner.agent ? getWakeStreamConnectionCount(owner.agent.id) : 0;
+    const wakeDeliveryMode = wakeStreamConnected
+      ? "stream"
+      : owner.agent?.wakeWebhookEnabled
+      ? "webhook"
+      : "polling";
 
     return NextResponse.json({
       // P0
@@ -50,6 +58,13 @@ export async function GET() {
       wakeWebhookLastPingAt: owner.agent?.wakeWebhookLastPingAt ?? null,
       wakeWebhookLastPingOk: owner.agent?.wakeWebhookLastPingOk ?? null,
       wakeWebhookLastPingError: owner.agent?.wakeWebhookLastPingError ?? null,
+      wakeStreamConnected,
+      wakeStreamConnectionCount,
+      wakeStreamLastConnectedAt: owner.agent?.wakeStreamLastConnectedAt ?? null,
+      wakeStreamLastSeenAt: owner.agent?.wakeStreamLastSeenAt ?? null,
+      wakeStreamLastDisconnectedAt: owner.agent?.wakeStreamLastDisconnectedAt ?? null,
+      wakeStreamLastError: owner.agent?.wakeStreamLastError ?? null,
+      wakeDeliveryMode,
       privacySync,
     });
   } catch (error) {

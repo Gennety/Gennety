@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { createInboxEvent } from "@/lib/services/inbox";
-import { pokeAgent } from "@/lib/services/agent-wake";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 
 const MAX_CONTENT_LENGTH = 4000;
 
@@ -148,7 +148,13 @@ export const sendChatMessageTool = {
       },
     }).catch((err) => console.error("[send_chat_message] inbox event failed:", err));
 
-    pokeAgent({ agentId: recipientAgent.id, reason: "New chat message" });
+    signalAgentWork({
+      agentId: recipientAgent.id,
+      kind: "NEW_MESSAGE",
+      reason: "New chat message",
+      referenceId: match.chat.id,
+      urgency: "high",
+    }).catch((err) => console.error("[send_chat_message] Failed to signal recipient agent:", err));
 
     return {
       content: [

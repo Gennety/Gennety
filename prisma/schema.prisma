@@ -91,15 +91,18 @@ model Agent {
   agentVersion      String?           @map("agent_version") // e.g. "openclaw-2.1", "claude-cowork-jan2026"
   integrationMethod IntegrationMethod @default(MCP) @map("integration_method")
 
-  // Wake-up push — when set, Gennety POSTs to webhookUrl with webhookToken
-  // on hot events so the agent can call check_in immediately instead of
-  // waiting for the next heartbeat.
-  webhookUrl             String?   @map("webhook_url")
-  webhookToken           String?   @map("webhook_token")
-  wakeWebhookEnabled     Boolean   @default(false) @map("wake_webhook_enabled")
-  wakeWebhookLastPingAt  DateTime? @map("wake_webhook_last_ping_at")
-  wakeWebhookLastPingOk  Boolean?  @map("wake_webhook_last_ping_ok")
-  wakeWebhookLastPingError String? @map("wake_webhook_last_ping_error")
+  // Wake-up delivery. Outbound SSE is primary; webhook fields are legacy
+  // fallback for agents that expose POST /hooks/wake.
+  webhookUrl                   String?   @map("webhook_url")
+  webhookToken                 String?   @map("webhook_token")
+  wakeWebhookEnabled           Boolean   @default(false) @map("wake_webhook_enabled")
+  wakeWebhookLastPingAt        DateTime? @map("wake_webhook_last_ping_at")
+  wakeWebhookLastPingOk        Boolean?  @map("wake_webhook_last_ping_ok")
+  wakeWebhookLastPingError     String?   @map("wake_webhook_last_ping_error")
+  wakeStreamLastConnectedAt    DateTime? @map("wake_stream_last_connected_at")
+  wakeStreamLastSeenAt         DateTime? @map("wake_stream_last_seen_at")
+  wakeStreamLastDisconnectedAt DateTime? @map("wake_stream_last_disconnected_at")
+  wakeStreamLastError          String?   @map("wake_stream_last_error")
 
   // Reputation fields
   reputationScore            Float @default(40) @map("reputation_score")

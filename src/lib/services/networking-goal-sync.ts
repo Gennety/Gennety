@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { contextToEmbeddingText, generateEmbeddingWithUsage } from "@/lib/embeddings";
 import { computeContextHash } from "@/lib/services/freshness";
 import { createInboxEvent } from "@/lib/services/inbox";
-import { pokeAgent } from "@/lib/services/agent-wake";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 import { getPrivacySyncStatus } from "@/lib/services/privacy-sync";
 import { buildNetworkingGoalChangePayload } from "@/lib/networking-goal";
 import { recordAnalyticsEvent } from "@/lib/analytics-tracking";
@@ -139,11 +139,14 @@ export async function syncNetworkingGoalForAgent(args: {
     payload,
   });
 
-  pokeAgent({
+  signalAgentWork({
     agentId: agent.id,
+    kind: "NETWORKING_GOAL_CHANGED",
     reason: "Networking goal changed — refresh strategy and republish context",
+    referenceId: agent.id,
+    urgency: "high",
   }).catch((error) => {
-    console.error("[networking-goal-sync] Failed to wake agent:", error);
+    console.error("[networking-goal-sync] Failed to signal agent:", error);
   });
 
   await recordAnalyticsEvent({

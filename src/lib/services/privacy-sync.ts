@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { buildPrivacyChangePayload } from "@/lib/privacy-change";
-import { pokeAgent } from "@/lib/services/agent-wake";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 import { createInboxEvent } from "@/lib/services/inbox";
 import type { Prisma } from "@prisma/client";
 
@@ -180,11 +180,14 @@ export async function syncPrivacyTopicsForAgent(args: {
     ? "Privacy settings tightened — refresh shared context now"
     : "Privacy settings changed — refresh shared context now";
 
-  pokeAgent({
+  signalAgentWork({
     agentId: agent.id,
+    kind: "PRIVACY_SETTINGS_CHANGED",
     reason: wakeReason,
+    referenceId: agent.id,
+    urgency: "high",
   }).catch((error) => {
-    console.error("[privacy-sync] Failed to wake agent:", error);
+    console.error("[privacy-sync] Failed to signal agent:", error);
   });
 
   return {

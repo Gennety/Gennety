@@ -74,6 +74,13 @@ interface Settings {
   wakeWebhookLastPingAt: string | null;
   wakeWebhookLastPingOk: boolean | null;
   wakeWebhookLastPingError: string | null;
+  wakeStreamConnected: boolean;
+  wakeStreamConnectionCount: number;
+  wakeStreamLastConnectedAt: string | null;
+  wakeStreamLastSeenAt: string | null;
+  wakeStreamLastDisconnectedAt: string | null;
+  wakeStreamLastError: string | null;
+  wakeDeliveryMode: "stream" | "webhook" | "polling";
   privacySync: {
     pending: boolean;
     searchPaused: boolean;
@@ -825,6 +832,12 @@ function formatWakeTimestamp(value: string | null): string | null {
 
 function getInstantWakeStatus(settings: Pick<
   Settings,
+  | "wakeStreamConnected"
+  | "wakeStreamConnectionCount"
+  | "wakeStreamLastConnectedAt"
+  | "wakeStreamLastSeenAt"
+  | "wakeStreamLastDisconnectedAt"
+  | "wakeStreamLastError"
   | "wakeWebhookEnabled"
   | "webhookUrl"
   | "webhookTokenSet"
@@ -832,46 +845,59 @@ function getInstantWakeStatus(settings: Pick<
   | "wakeWebhookLastPingOk"
   | "wakeWebhookLastPingError"
 >) {
-  if (!settings.wakeWebhookEnabled) {
+  if (settings.wakeStreamConnected) {
     return {
-      label: "Off",
-      tone: "bg-neutral-800/90 text-neutral-300",
-      detail: "Gennety will rely on scheduled check-ins only.",
+      label: "Realtime connected",
+      tone: "bg-emerald-950/60 text-emerald-200",
+      detail:
+        settings.wakeStreamConnectionCount > 1
+          ? `${settings.wakeStreamConnectionCount} live OpenClaw wake streams are connected.`
+          : "Your OpenClaw has an outbound realtime channel open.",
     };
   }
 
-  if (!settings.webhookUrl || !settings.webhookTokenSet) {
+  if (settings.wakeStreamLastConnectedAt) {
     return {
-      label: "Needs setup",
-      tone: "bg-amber-950/60 text-amber-200",
-      detail: "Add a public base URL and bearer token manually, or let your OpenClaw write these settings for you automatically.",
+      label: "Waiting for agent",
+      tone: "bg-sky-950/60 text-sky-200",
+      detail: settings.wakeStreamLastSeenAt
+        ? `Last realtime contact: ${formatWakeTimestamp(settings.wakeStreamLastSeenAt)}. Polling fallback is active.`
+        : "OpenClaw has connected before. Gennety will use polling until it reconnects.",
     };
   }
 
-  if (settings.wakeWebhookLastPingOk === true) {
+  if (settings.wakeWebhookEnabled && settings.webhookUrl && settings.webhookTokenSet && settings.wakeWebhookLastPingOk === true) {
     return {
-      label: "Connected",
+      label: "Legacy webhook connected",
       tone: "bg-emerald-950/60 text-emerald-200",
       detail: settings.wakeWebhookLastPingAt
-        ? `Last wake check succeeded at ${formatWakeTimestamp(settings.wakeWebhookLastPingAt)}.`
-        : "The last wake check succeeded.",
+        ? `Inbound webhook last succeeded at ${formatWakeTimestamp(settings.wakeWebhookLastPingAt)}.`
+        : "Inbound webhook is enabled and the last check succeeded.",
     };
   }
 
-  if (settings.wakeWebhookLastPingOk === false) {
+  if (settings.wakeWebhookEnabled && settings.wakeWebhookLastPingOk === false) {
     return {
-      label: "Attention",
+      label: "Legacy webhook attention",
       tone: "bg-red-950/60 text-red-200",
       detail:
         settings.wakeWebhookLastPingError ??
-        "The last wake check failed. Review the endpoint or token.",
+        "The inbound webhook failed. Polling fallback still works.",
+    };
+  }
+
+  if (settings.wakeWebhookEnabled && (!settings.webhookUrl || !settings.webhookTokenSet)) {
+    return {
+      label: "Legacy webhook needs setup",
+      tone: "bg-amber-950/60 text-amber-200",
+      detail: "Save both the public base URL and bearer token, or turn the legacy webhook off.",
     };
   }
 
   return {
-    label: "Ready to test",
-    tone: "bg-sky-950/60 text-sky-200",
-    detail: "Configuration is saved. Run Test connection to verify the endpoint.",
+    label: "Polling fallback",
+    tone: "bg-neutral-800/90 text-neutral-300",
+    detail: "OpenClaw has not opened the realtime stream yet. Scheduled check-ins still deliver all work.",
   };
 }
 
@@ -1049,32 +1075,31 @@ function InstantWakeSection({
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium text-white">Instant wake-up for your agent</h3>
+          <h3 className="text-sm font-medium text-white">Realtime wake-up for your agent</h3>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
-            Lets Gennety wake your agent immediately on hot events, instead of waiting
-            for the next scheduled check-in.
+            OpenClaw keeps an outbound connection to Gennety, so hot events can
+            wake it without exposing a public URL.
           </p>
         </div>
-        <ToggleSwitch
-          checked={settings.wakeWebhookEnabled}
-          disabled={saving}
-          onClick={handleToggle}
-        />
       </div>
 
       <Surface className="px-4 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <StatusPill className={status.tone}>
-                {status.label}
-              </StatusPill>
+              <StatusPill className={status.tone}>{status.label}</StatusPill>
             </div>
             <p className="mt-2 text-xs text-neutral-400">{status.detail}</p>
 
+            {settings.wakeStreamLastConnectedAt && (
+              <p className="mt-2 text-[11px] text-neutral-600">
+                Last stream connect: {formatWakeTimestamp(settings.wakeStreamLastConnectedAt)}
+              </p>
+            )}
+
             {settings.webhookUrl && (
               <p className="mt-2 text-[11px] text-neutral-500 font-mono break-all">
-                {settings.webhookUrl}
+                Legacy webhook: {settings.webhookUrl}
               </p>
             )}
 
@@ -1106,7 +1131,7 @@ function InstantWakeSection({
               disabled={testing || !settings.webhookUrl || !settings.webhookTokenSet}
               className={SECONDARY_BUTTON_SM}
             >
-              {testing ? "Testing..." : "Test connection"}
+              {testing ? "Testing..." : "Test legacy webhook"}
             </button>
           </div>
         </div>
@@ -1118,8 +1143,8 @@ function InstantWakeSection({
             Recommended setup
           </p>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
-            Let your OpenClaw configure instant wake-up for you and write the
-            same base URL and bearer token fields into Gennety automatically.
+            Let your OpenClaw open the realtime stream itself. No public agent
+            URL, DNS setup, or Tailscale Funnel is required.
           </p>
         </div>
 
@@ -1127,7 +1152,7 @@ function InstantWakeSection({
           <p className="text-sm font-medium text-white">OpenClaw Prompt</p>
           <p className="text-xs text-neutral-500 mt-1 leading-relaxed max-w-xl">
             Copy this prompt and send it to your OpenClaw. It will configure
-            instant wake-up and fill these settings automatically.
+            the outbound wake stream and keep scheduled polling as fallback.
           </p>
 
           {promptError && <p className="mt-3 text-xs text-red-400">{promptError}</p>}
@@ -1155,7 +1180,7 @@ function InstantWakeSection({
           onClick={() => setManualOpen((v) => !v)}
           className="group inline-flex items-center gap-2 text-xs text-neutral-400 transition-colors hover:text-neutral-200"
         >
-          <span>{manualOpen ? "Hide manual configuration" : "Manual configuration"}</span>
+          <span>{manualOpen ? "Hide legacy webhook configuration" : "Legacy incoming webhook"}</span>
           <ChevronIcon open={manualOpen} className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -1163,11 +1188,24 @@ function InstantWakeSection({
       {manualOpen && (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500 leading-relaxed">
-            Manual path if you already know your agent&apos;s public base URL and bearer
-            token. This is the same configuration your OpenClaw can write through
-            the setup API from the prompt above. Gennety will use{" "}
+            Optional power-user path if you already expose a public agent endpoint.
+            The default realtime channel above does not need this. Gennety will use{" "}
             <code className="text-neutral-400 font-mono">{WAKE_PATH}</code> automatically.
           </p>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-neutral-950/35 px-3 py-3 ring-1 ring-inset ring-white/[0.05]">
+            <div>
+              <p className="text-xs font-medium text-neutral-200">Enable legacy inbound webhook</p>
+              <p className="mt-1 text-[11px] text-neutral-600">
+                Uses a public HTTPS endpoint only when no realtime stream is connected.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={settings.wakeWebhookEnabled}
+              disabled={saving}
+              onClick={handleToggle}
+            />
+          </div>
 
           <label className="block">
             <span className="text-xs text-neutral-500 block mb-1">Agent base URL (HTTPS)</span>
@@ -1228,10 +1266,10 @@ function InstantWakeSection({
                 onClick={handleSave}
                 disabled={saving || !dirty}
                 className={PRIMARY_BUTTON_SM}
-                >
-                  Save
-                </button>
-              </div>
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

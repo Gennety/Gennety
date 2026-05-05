@@ -9,6 +9,8 @@ import {
 import { getPrivacySyncStatus } from "@/lib/services/privacy-sync";
 import { recordEvent } from "@/lib/services/reputation";
 import { recordAnalyticsEvent } from "@/lib/analytics-tracking";
+import { createInboxEvent } from "@/lib/services/inbox";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 
 interface RawContextInput {
   // From USER.md
@@ -166,12 +168,13 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
   const triggeredBeacons = agent.searchPaused
     ? []
     : await prisma.$queryRaw<
-        Array<{ id: string; agent_id: string; context_query: string }>
+        Array<{ id: string; agent_id: string; owner_id: string; context_query: string }>
       >`
-        SELECT b.id, b.agent_id, b.context_query
+        SELECT b.id, b.agent_id, beacon_agent.owner_id, b.context_query
         FROM beacons b
         JOIN agents beacon_agent ON beacon_agent.id = b.agent_id
         WHERE b.is_active = true
+          AND b.triggered_at IS NULL
           AND beacon_agent.search_paused = false
           AND b.agent_id != ${agent.id}
           AND b.embedding IS NOT NULL
@@ -202,6 +205,35 @@ export async function publishContext(agentId: string, rawContext: RawContextInpu
         })
       )
     );
+
+    const triggeredAt = new Date().toISOString();
+    await Promise.all(
+      triggeredBeacons.map((beacon) =>
+        createInboxEvent({
+          ownerId: beacon.owner_id,
+          agentId: beacon.agent_id,
+          type: "BEACON_TRIGGERED",
+          referenceId: beacon.id,
+          payload: {
+            beacon_id: beacon.id,
+            context_query: beacon.context_query,
+            matched_agent_id: agent.id,
+            matched_external_agent_id: agent.agentId,
+            triggered_at: triggeredAt,
+          },
+        })
+      )
+    ).catch((err) => console.error("[inbox] Beacon triggered events failed:", err));
+
+    triggeredBeacons.forEach((beacon) => {
+      signalAgentWork({
+        agentId: beacon.agent_id,
+        kind: "BEACON_TRIGGERED",
+        reason: "Beacon triggered — evaluate new candidate",
+        referenceId: beacon.id,
+        urgency: "high",
+      }).catch((err) => console.error("[context-index] Failed to signal beacon agent:", err));
+    });
   }
 
   // Update freshness state based on whether this was a significant update

@@ -7,6 +7,7 @@ import {
   getWakeWebhookUrlError,
   normalizeWakeBaseUrl,
 } from "@/lib/wake-webhook";
+import { getWakeStreamConnectionCount, hasLiveWakeStream } from "@/lib/services/agent-wake-stream";
 
 const WakeSetupSchema = z.object({
   baseUrl: z
@@ -78,6 +79,10 @@ async function getAuthenticatedAgent(request: NextRequest, agentId: string) {
       wakeWebhookLastPingAt: true,
       wakeWebhookLastPingOk: true,
       wakeWebhookLastPingError: true,
+      wakeStreamLastConnectedAt: true,
+      wakeStreamLastSeenAt: true,
+      wakeStreamLastDisconnectedAt: true,
+      wakeStreamLastError: true,
     },
   });
 
@@ -102,6 +107,7 @@ export async function GET(
   return NextResponse.json({
     ok: true,
     agentId: agent.agentId,
+    preferredMode: "outbound_stream",
     configured: Boolean(agent.webhookUrl && agent.webhookToken),
     enabled: agent.wakeWebhookEnabled,
     baseUrl: agent.webhookUrl ? normalizeWakeBaseUrl(agent.webhookUrl) : null,
@@ -110,6 +116,25 @@ export async function GET(
     checkedAt: agent.wakeWebhookLastPingAt,
     reachable: agent.wakeWebhookLastPingOk,
     error: agent.wakeWebhookLastPingError,
+    stream: {
+      connected: hasLiveWakeStream(agent.id),
+      connectionCount: getWakeStreamConnectionCount(agent.id),
+      endpoint: "/api/agent/wake/stream",
+      lastConnectedAt: agent.wakeStreamLastConnectedAt,
+      lastSeenAt: agent.wakeStreamLastSeenAt,
+      lastDisconnectedAt: agent.wakeStreamLastDisconnectedAt,
+      lastError: agent.wakeStreamLastError,
+    },
+    legacyWebhook: {
+      configured: Boolean(agent.webhookUrl && agent.webhookToken),
+      enabled: agent.wakeWebhookEnabled,
+      baseUrl: agent.webhookUrl ? normalizeWakeBaseUrl(agent.webhookUrl) : null,
+      webhookUrl: agent.webhookUrl,
+      webhookTokenSet: Boolean(agent.webhookToken),
+      checkedAt: agent.wakeWebhookLastPingAt,
+      reachable: agent.wakeWebhookLastPingOk,
+      error: agent.wakeWebhookLastPingError,
+    },
   });
 }
 

@@ -90,6 +90,7 @@ export async function GET(
     fileContent,
     mcpConfig,
     agentId: agent.agentId,
+    apiKey: agent.apiKey,
   });
 
   return new NextResponse(setupDoc, {
@@ -122,8 +123,9 @@ function buildSetupDocument(opts: {
   fileContent: string;
   mcpConfig: string | null;
   agentId: string;
+  apiKey: string;
 }): string {
-  const { fileName, fileContent, mcpConfig, agentId } = opts;
+  const { fileName, fileContent, mcpConfig, agentId, apiKey } = opts;
 
   const sections: string[] = [];
 
@@ -151,8 +153,22 @@ function buildSetupDocument(opts: {
     sections.push("```\n");
   }
 
-  // Step 3: Verify
-  const verifyStep = mcpConfig ? 3 : 2;
+  const wakeStep = mcpConfig ? 3 : 2;
+  sections.push(`## Step ${wakeStep} — Start realtime wake stream\n`);
+  sections.push(
+    `Keep an outbound SSE connection open so Gennety can wake you without a public inbound URL:\n`
+  );
+  sections.push("```bash");
+  sections.push(`curl -N https://app.gennety.com/api/agent/wake/stream \\`);
+  sections.push(`  -H "Authorization: Bearer ${apiKey}" \\`);
+  sections.push(`  -H "Accept: text/event-stream"`);
+  sections.push("```\n");
+  sections.push(
+    `When the stream sends \`connected\`, \`resync\`, or \`wake\`, call \`check_in\` immediately. If the stream disconnects, reconnect with backoff and keep normal polling as fallback.\n`
+  );
+
+  // Step 4: Verify
+  const verifyStep = wakeStep + 1;
   sections.push(`## Step ${verifyStep} — Verify connection\n`);
 
   sections.push(

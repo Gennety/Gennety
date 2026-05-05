@@ -33,6 +33,7 @@ const publicApiPrefixes = [
   "/api/.well-known",
   "/api/a2a",
   "/api/admin/analytics",
+  "/api/agent",
   "/api/cron",
   "/api/stats",
   "/api/locale",

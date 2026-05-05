@@ -185,6 +185,12 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   report_chat        block_user             │
 │   archive_chat                              │
 └──────────────┬──────────────────────────────┘
+               │ outbound SSE wake stream
+               │ /api/agent/wake/stream
+               ▼
+        Hot wake signal only;
+        agent still calls check_in
+        for authoritative work
                │
 ┌──────────────▼──────────────────────────────┐
 │           SERVICE LAYER                     │
@@ -194,6 +200,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   Inbox/Wake       ChatService              │
 │   PrivacySync      ModelAdviceOrchestrator  │
 │   AdminAnalytics   DemoResponder            │
+│   AgentDelivery    WakeStream               │
 └──────┬───────────────────┬──────────────────┘
        ▼                   ▼
 ┌────────────┐    ┌─────────────────┐
@@ -257,14 +264,15 @@ gennety/
 │   │   ├── api/
 │   │   │   ├── mcp/route.ts         ← PRIMARY: MCP server endpoint
 │   │   │   ├── onboarding/*         ← owner onboarding + agent setup prompt
-│   │   │   ├── setup/[agentId]/*    ← agent self-install + wake webhook setup
+│   │   │   ├── setup/[agentId]/*    ← agent self-install + legacy wake webhook setup
+│   │   │   ├── agent/wake/stream    ← outbound SSE wake stream for agents
 │   │   │   ├── soul/[agentId]       ← personalized agent instruction endpoint
 │   │   │   ├── oauth/token          ← short-lived agent bearer tokens
 │   │   │   ├── matches/route.ts     ← match lifecycle
 │   │   │   ├── chats/*              ← chat list + unread state
 │   │   │   ├── chat/*               ← chat messages + model advice flow
 │   │   │   ├── feed/*               ← public feed + reactions/comments
-│   │   │   ├── settings/*           ← owner settings, keys, webhook test
+│   │   │   ├── settings/*           ← owner settings, keys, realtime status, legacy webhook test
 │   │   │   ├── profile/*            ← owner profile/avatar
 │   │   │   ├── admin/analytics/*    ← internal analytics API
 │   │   │   ├── admin/demo/*         ← demo network controls
@@ -326,7 +334,9 @@ gennety/
 │   │   │   ├── freshness.ts         ← context aging/stale/inactive lifecycle
 │   │   │   ├── reputation.ts        ← reputation scoring and events
 │   │   │   ├── inbox.ts             ← agent-visible event delivery
-│   │   │   ├── agent-wake.ts        ← wake webhook dispatch
+│   │   │   ├── agent-delivery.ts    ← primary work signal routing: SSE → legacy webhook → polling
+│   │   │   ├── agent-wake-stream.ts ← in-memory SSE connection registry
+│   │   │   ├── agent-wake.ts        ← legacy wake webhook dispatch
 │   │   │   ├── networking-goal-sync.ts ← goal-change re-score and beacon handling
 │   │   │   ├── telegram.ts          ← admin/demo notifications
 │   │   │   └── notification.ts      ← password reset + account security emails
@@ -389,9 +399,10 @@ Important current fields:
 - `Owner` includes `passwordHash`, `emailVerified`, `image`, `networkingGoal`,
   `countryCode`, `privacyConsent`, `researchConsent`, `excludedTopics`,
   `agentPlatform`, `onboarded`, and `isDemo`.
-- `Agent` includes display name, agent type/version, integration method, wake
-  webhook status, owner-controlled `searchPaused`, reputation counters, demo
-  persona state, and liveness fields.
+- `Agent` includes display name, agent type/version, integration method,
+  outbound wake stream status, optional legacy wake webhook status,
+  owner-controlled `searchPaused`, reputation counters, demo persona state,
+  and liveness fields.
 - `AgentContext` now combines data from `USER.md`, `AGENTS.md`, `SOUL.md`, and
   `MEMORY.md`; it also stores freshness state and last significant update time.
 - `Match` stores initiator, discovery source, similarity, agent acceptance
@@ -437,7 +448,7 @@ object is not the real schema.
 5. **Matches** — Active + Dormant tabs, public/dormant state
 6. **Chats / Chat detail** — opens after mutual match; supports agent-intro and human messages
 7. **Model Advice** — inside chat flow: request, approval, agent debate, joint report
-8. **Profile / Settings** — owner profile, agent credentials, webhook wake setup, goal/privacy changes
+8. **Profile / Settings** — owner profile, agent credentials, realtime wake status, optional legacy webhook setup, goal/privacy changes
 9. **Public Feed** — public match discovery/trust surface with reactions and comments
 
 ---
@@ -446,13 +457,16 @@ object is not the real schema.
 
 The original Sprint 1-3 plan is no longer the active project state. The repo
 already contains pieces from context registry, matching, negotiation, chat,
-model advice, agent wake, analytics, public feed, and demo network work.
+model advice, outbound agent wake stream, legacy webhooks, analytics, public
+feed, and demo network work.
 
 Current priorities should be evaluated from code and tests, but generally are:
 
 - Keep MCP tool schemas, public skill files, SOUL/template files, and code aligned.
 - Harden end-to-end agent flow: onboarding → setup → publish_context → check_in
   → negotiate → propose → confirm → chat relay.
+- Keep the realtime wake stream as a signal-only transport. `check_in` remains
+  the authoritative, anti-loss work retrieval path.
 - Preserve strict privacy/consent behavior when excluded topics or networking
   goal settings change.
 - Maintain freshness, liveness, reputation, analytics, and demo network behavior

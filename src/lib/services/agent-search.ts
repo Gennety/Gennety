@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { recordAnalyticsEvent } from "@/lib/analytics-tracking";
-import { pokeAgent } from "@/lib/services/agent-wake";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 import { createInboxEvent } from "@/lib/services/inbox";
 import {
   escapeTelegramHtml,
@@ -99,13 +99,16 @@ export async function setAgentSearchPaused(args: {
       },
     });
 
-    pokeAgent({
+    signalAgentWork({
       agentId: agent.id,
+      kind: "AGENT_SEARCH_CHANGED",
       reason: args.paused
         ? "Owner paused match search — stop proposing matches"
         : "Owner resumed match search — refresh matching strategy",
+      referenceId: agent.id,
+      urgency: "high",
     }).catch((error) => {
-      console.error("[agent-search] Failed to wake agent:", error);
+      console.error("[agent-search] Failed to signal agent:", error);
     });
   }
 

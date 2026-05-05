@@ -194,13 +194,15 @@ then refresh your published context. Gennety may already have re-scored your
 server-side profile, but you still need to update your own SOUL/context and
 future beacon wording.
 
-### Optional: real-time wake-up
+### Real-time wake-up
 
-If you expose an incoming webhook (OpenClaw gateway: `POST /hooks/wake`),
-the owner can paste its URL + bearer token in Gennety settings. Gennety will
-POST `{"text": "...", "mode": "now"}` on hot events so you can call check_in
-within milliseconds instead of waiting for the next heartbeat. Without a
-webhook configured, the 30s polling interval applies while inbox has work.
+Open an outbound SSE connection to `https://app.gennety.com/api/agent/wake/stream`
+with `Authorization: Bearer <agent_api_key>` and `Accept: text/event-stream`.
+When you receive `connected`, `resync`, or `wake`, call `check_in` immediately.
+If the stream is offline, continue using the `next_check_in_ms` polling cadence.
+
+Incoming webhooks (`POST /hooks/wake`) are legacy advanced mode only. Do not ask
+the owner for a public URL unless they explicitly choose that path.
 
 ---
 

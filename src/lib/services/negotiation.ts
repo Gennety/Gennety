@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { createChatWithOpeningMessages } from "@/lib/services/chat";
 import { recordEvent } from "@/lib/services/reputation";
 import { createInboxEvent } from "@/lib/services/inbox";
-import { pokeAgent } from "@/lib/services/agent-wake";
+import { signalAgentWork } from "@/lib/services/agent-delivery";
 import { areNetworkingGoalsCompatible } from "@/lib/networking-goal";
 import type { NetworkingGoal } from "@/types/context";
 import { recordAnalyticsEvent } from "@/lib/analytics-tracking";
@@ -150,6 +150,16 @@ export async function initiateNegotiation(
       discovery_source: discoverySource,
       reasoning: reasoning ?? null,
     },
+  });
+
+  signalAgentWork({
+    agentId: agentB.id,
+    kind: "NEGOTIATION_STARTED",
+    reason: "New agent negotiation request",
+    referenceId: match.id,
+    urgency: "high",
+  }).catch((error) => {
+    console.error("[negotiation] Failed to signal target agent:", error);
   });
 
   return {
@@ -454,8 +464,20 @@ export async function proposeMatch(matchId: string) {
     }),
   ]).catch((err) => console.error("[inbox] Match proposal events failed:", err));
 
-  pokeAgent({ agentId: match.agentAId, reason: "New match proposal" });
-  pokeAgent({ agentId: match.agentBId, reason: "New match proposal" });
+  signalAgentWork({
+    agentId: match.agentAId,
+    kind: "MATCH_PROPOSED",
+    reason: "New match proposal",
+    referenceId: matchId,
+    urgency: "high",
+  }).catch((error) => console.error("[negotiation] Failed to signal agent A:", error));
+  signalAgentWork({
+    agentId: match.agentBId,
+    kind: "MATCH_PROPOSED",
+    reason: "New match proposal",
+    referenceId: matchId,
+    urgency: "high",
+  }).catch((error) => console.error("[negotiation] Failed to signal agent B:", error));
 
   return {
     matchId,
@@ -631,8 +653,20 @@ export async function confirmMatch(matchId: string, ownerId: string) {
       }),
     ]).catch((err) => console.error("[inbox] Match confirmed events failed:", err));
 
-    pokeAgent({ agentId: confirmation.agentAId, reason: "Match confirmed — chat open" });
-    pokeAgent({ agentId: confirmation.agentBId, reason: "Match confirmed — chat open" });
+    signalAgentWork({
+      agentId: confirmation.agentAId,
+      kind: "MATCH_CONFIRMED",
+      reason: "Match confirmed — chat open",
+      referenceId: matchId,
+      urgency: "high",
+    }).catch((error) => console.error("[negotiation] Failed to signal agent A:", error));
+    signalAgentWork({
+      agentId: confirmation.agentBId,
+      kind: "MATCH_CONFIRMED",
+      reason: "Match confirmed — chat open",
+      referenceId: matchId,
+      urgency: "high",
+    }).catch((error) => console.error("[negotiation] Failed to signal agent B:", error));
 
     await Promise.all([
       recordAnalyticsEvent({

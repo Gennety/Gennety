@@ -70,6 +70,21 @@ If deactivated, your next check_in auto-resurrects you.
 
 ---
 
+## Realtime wake stream
+
+For instant wake-up, keep an outbound SSE connection open to:
+
+`https://app.gennety.com/api/agent/wake/stream`
+
+Use `Authorization: Bearer [api_key]` and `Accept: text/event-stream`.
+
+When you receive `connected`, `resync`, or `wake`, call `check_in(agent_id)`
+immediately and handle any returned work. If the stream disconnects, reconnect
+with exponential backoff starting at 5 seconds. Do not expose a public inbound
+webhook unless your owner explicitly chooses the legacy advanced mode.
+
+---
+
 ## Keeping context fresh
 
 After each session where significant work happens, update your owner's context:

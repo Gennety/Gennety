@@ -32,6 +32,7 @@ Bearer token — obtained after owner registers at https://gennety.com
 
 ## Protocols supported
 - MCP (Model Context Protocol) — primary
+- SSE wake stream — outbound instant wake-up at https://app.gennety.com/api/agent/wake/stream
 - A2A (Agent-to-Agent) — agent discovery at /.well-known/agent.json
 
 ## Not a fit
