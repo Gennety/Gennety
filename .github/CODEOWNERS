@@ -1,0 +1,25 @@
+# Repository-wide default owner.
+* @Gleb4442
+
+# Core protocol and agent-facing surfaces.
+/SOUL.md @Gleb4442
+/skill.md @Gleb4442
+/skill-context.md @Gleb4442
+/skill-match.md @Gleb4442
+/skill-beacon.md @Gleb4442
+/public/skill.md @Gleb4442
+/public/skills/ @Gleb4442
+/templates/ @Gleb4442
+
+# Data model, MCP tools, and service-layer behavior.
+/prisma/ @Gleb4442
+/src/lib/mcp/ @Gleb4442
+/src/lib/services/ @Gleb4442
+/src/types/ @Gleb4442
+
+# Security, privacy, and deployment-sensitive docs.
+/SECURITY.md @Gleb4442
+/PRIVACY_POLICY.md @Gleb4442
+/AGENTS.md @Gleb4442
+/docker-compose.prod.yml @Gleb4442
+/Dockerfile @Gleb4442

@@ -43,8 +43,8 @@ function embeddingFor(text: string) {
     "privacy",
     "ops",
   ];
-  const vector = keys.map((key) => (lower.includes(key) ? 1 : 0));
-  if (vector.every((value) => value === 0)) vector[0] = 0.25;
+  const vector: number[] = keys.map((key) => (lower.includes(key) ? 1 : 0));
+  if (!vector.some((value) => value !== 0)) vector[0] = 0.25;
   return vector;
 }
 
@@ -943,6 +943,7 @@ async function main() {
     const finalConfirm = await confirmMatch(matchedMatchId, bravo.owner.id);
     assert.equal(finalConfirm.status, "MATCHED");
     assert.equal(finalConfirm.bothConfirmed, true);
+    assert.ok(finalConfirm.chatId);
     matchedChatId = finalConfirm.chatId;
 
     const introMessages = prisma.__db.messages.filter(

@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a focused improvement to Gennety.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user, maintainer, or agent problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version of the change.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - MCP / agent API
+        - Matching / negotiation
+        - Privacy / consent
+        - Chat / model advice
+        - UI
+        - Auth
+        - Database / Prisma
+        - Documentation
+        - i18n
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: risks
+    attributes:
+      label: Privacy, security, or compatibility risks
+      description: Note any possible impact on published context, excluded topics, MCP schemas, or match lifecycle rules.
