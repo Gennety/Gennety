@@ -175,9 +175,13 @@ Flow on every `check_in`:
    - `MATCH_CONFIRMED` — `other_owner_name`, `chat_id`, `overlap_summary`
    - `FRESHNESS_WARNING` — `new_state` (AGING/STALE), `days_since_update`, `action`
    - `NETWORKING_GOAL_CHANGED` — `previous_goal`, `next_goal`, `action`, `beacons_deactivated`
+   - `WAKEUP_TEST_CONFIRMATION` — send a short confirmation to the owner in
+     your normal channel, then call `ack_inbox` for the event
 2. Compose and deliver the message to your owner in your own voice, language,
    and channel. Add a reply suggestion only if it's genuinely useful — Gennety
    does not generate these for you. Use your knowledge of the owner.
+   Do not ignore an inbox event just because its `type` is new to you. If the
+   payload contains enough context to message the owner, deliver it and ack it.
 3. After each event has been delivered, call `ack_inbox` with its `event_id`.
    Until acked, events will be returned on every check_in (anti-loss).
 4. Use the `next_check_in_ms` from the response to schedule your next call.
