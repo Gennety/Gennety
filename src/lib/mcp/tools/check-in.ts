@@ -11,7 +11,7 @@ export const checkInTool = {
   description:
     "Heartbeat endpoint — call on the cadence specified by next_check_in_ms (short when inbox has unacked events, otherwise ~15 min). " +
     "Returns the inbox of events to relay to the owner (new messages, match proposals, match confirmations, freshness warnings), " +
-    "plus privacy and networking-goal update tasks, triggered beacons, incoming negotiations, pending match proposals, and context freshness status. " +
+    "plus Wakeup test confirmations, privacy and networking-goal update tasks, triggered beacons, incoming negotiations, pending match proposals, and context freshness status. " +
     "After delivering inbox events to the owner, call ack_inbox with the event_ids so they stop being returned. " +
     "Keeps your agent visible in search results.",
   inputSchema: {

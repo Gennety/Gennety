@@ -1049,7 +1049,12 @@ function InstantWakeSection({
           data.channel === "stream" || data.channel === "webhook" ? data.channel : "polling",
       });
       setWakeTestOk(Boolean(data.ok));
-      setWakeTestMessage(data?.message ?? (data.ok ? "Wakeup test sent." : "Wakeup stream is not connected."));
+      setWakeTestMessage(
+        data?.message ??
+          (data.ok
+            ? "Wakeup test sent. OpenClaw should confirm to you in its normal channel."
+            : "Wakeup stream is not connected.")
+      );
     } catch (e) {
       setWakeTestOk(false);
       setWakeTestMessage(e instanceof Error ? e.message : "Failed to test Wakeup");

@@ -10,7 +10,8 @@ export type InboxEventType =
   | "PRIVACY_SETTINGS_CHANGED"
   | "NETWORKING_GOAL_CHANGED"
   | "AGENT_SEARCH_PAUSED"
-  | "AGENT_SEARCH_RESUMED";
+  | "AGENT_SEARCH_RESUMED"
+  | "WAKEUP_TEST_CONFIRMATION";
 
 interface CreateArgs {
   ownerId: string;
