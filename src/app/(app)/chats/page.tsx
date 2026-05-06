@@ -192,14 +192,7 @@ export default function ChatsPage() {
                 <MoreIcon />
               </button>
               {openMenuChatId === chat.chatId && (
-                <div className="absolute right-0 top-11 z-30 w-40 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/98 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-                  <Link
-                    href={`/chat/${chat.matchId}`}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-neutral-200 transition-colors hover:bg-white/8 hover:text-white"
-                  >
-                    <OpenIcon />
-                    <span>{t("chats.openChat")}</span>
-                  </Link>
+                <div className="absolute right-0 top-11 z-30 w-36 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/98 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
                   <button
                     type="button"
                     onClick={() => {
@@ -260,25 +253,6 @@ function FlagIcon({ className = "w-4 h-4" }: { className?: string }) {
     >
       <path d="M5 17V4" />
       <path d="M5 4h9l-1.4 3L14 10H5" />
-    </svg>
-  );
-}
-
-function OpenIcon({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M7 4h9v9" />
-      <path d="M16 4L6 14" />
-      <path d="M4 7v9h9" />
     </svg>
   );
 }
