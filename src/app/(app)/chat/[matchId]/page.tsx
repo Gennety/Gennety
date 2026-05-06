@@ -1287,9 +1287,11 @@ function ModelAdviceChatNote({
         type="button"
         onClick={onDismiss}
         aria-label={dismissLabel}
-        className="absolute right-1 top-1 z-10 flex h-10 w-10 cursor-pointer touch-manipulation items-center justify-center rounded-2xl bg-white/[0.04] text-neutral-400 ring-1 ring-inset ring-white/[0.08] transition-all duration-200 ease-in-out hover:bg-white/[0.08] hover:text-white hover:ring-white/[0.14] active:scale-[0.96] active:bg-white/[0.12] active:text-white"
+        className="group absolute right-1 top-1 z-10 flex h-10 w-10 cursor-pointer touch-manipulation items-center justify-center text-neutral-400 transition-all duration-200 ease-in-out hover:text-white active:scale-[0.96] active:text-white"
       >
-        <CloseIcon className="w-3.5 h-3.5" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-inset ring-white/[0.08] transition-all duration-200 ease-in-out group-hover:bg-white/[0.08] group-hover:ring-white/[0.14] group-active:bg-white/[0.12]">
+          <CloseIcon className="w-3.5 h-3.5" />
+        </span>
       </button>
       <p className="model-advice-note-copy m-0 pr-10 leading-relaxed text-neutral-300">
         {text}
