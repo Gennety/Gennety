@@ -1600,8 +1600,8 @@ function DeleteAccountSection() {
   };
 
   return (
-    <div className="mt-10 rounded-xl bg-red-950/[0.08] p-5 ring-1 ring-inset ring-red-500/[0.12]">
-      <h2 className="mb-4 text-[13px] font-semibold uppercase text-red-200/90">
+    <div className="mt-10 rounded-xl bg-red-500/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
+      <h2 className="mb-4 text-[13px] font-semibold uppercase text-red-200">
         {t("settings.dangerZone")}
       </h2>
 
@@ -1615,7 +1615,7 @@ function DeleteAccountSection() {
             placeholder={t("settings.typeEmailConfirm")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mb-3 w-full min-h-10 rounded-xl bg-neutral-950/68 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 ring-1 ring-inset ring-red-500/[0.18] transition focus:outline-none focus:ring-red-400/[0.28]"
+            className="mb-3 w-full min-h-10 rounded-xl bg-red-950/[0.16] px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 transition focus:outline-none focus:bg-red-950/[0.22]"
           />
           {err && <p className="text-xs text-red-400 mb-3">{err}</p>}
           <div className="flex gap-2">

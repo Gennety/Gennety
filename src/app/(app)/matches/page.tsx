@@ -320,7 +320,7 @@ function StatusBadge({
   const label = sentWaiting ? t("sent") : t(status.toLowerCase());
 
   return (
-    <span className={getMattePillClass("neutral", `text-[11px] tracking-wide ${styles.text}`)}>
+    <span className={getMattePillClass("neutral", styles.text)}>
       <span className={getMatteDotClass(styles.dot)} />
       {label}
     </span>

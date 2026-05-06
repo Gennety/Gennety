@@ -19,7 +19,7 @@ export const panelSoftClass = "rounded-xl bg-white/[0.035] ring-1 ring-inset rin
 export const codePanelClass = "rounded-xl bg-neutral-950/78 ring-1 ring-inset ring-white/[0.08]";
 export const chipBaseClass = "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium";
 export const mattePillBaseClass =
-  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium";
+  "inline-flex min-h-7 items-center justify-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium leading-none";
 export const subtleButtonClass =
   "inline-flex min-h-10 items-center justify-center rounded-xl bg-neutral-950/58 px-4 py-2.5 text-sm font-medium text-neutral-300 ring-1 ring-inset ring-white/[0.10] transition hover:bg-neutral-900/80 hover:text-white hover:ring-white/[0.16] disabled:opacity-50";
 export const subtleButtonSmallClass =
@@ -29,11 +29,11 @@ export const primaryButtonClass =
 export const primaryButtonSmallClass =
   "inline-flex min-h-9 items-center justify-center rounded-xl bg-white px-3 py-2 text-[13px] font-medium text-black transition hover:bg-neutral-200 disabled:opacity-50";
 export const dangerButtonClass =
-  "inline-flex min-h-10 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
+  "inline-flex min-h-10 items-center justify-center rounded-xl bg-red-500/90 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
 export const dangerButtonSmallClass =
-  "inline-flex min-h-9 items-center justify-center rounded-xl bg-red-600 px-3 py-2 text-[13px] font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
+  "inline-flex min-h-9 items-center justify-center rounded-xl bg-red-500/90 px-3 py-2 text-[13px] font-medium text-white transition hover:bg-red-500 disabled:opacity-50";
 export const dangerSubtleButtonClass =
-  "inline-flex min-h-10 items-center justify-center rounded-xl bg-red-950/25 px-4 py-2.5 text-sm font-medium text-red-200 ring-1 ring-inset ring-red-500/[0.20] transition hover:bg-red-950/42 hover:text-red-100 disabled:opacity-50";
+  "inline-flex min-h-10 items-center justify-center rounded-xl bg-red-500/[0.12] px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/[0.18] hover:text-red-100 disabled:opacity-50";
 export const inputClass =
   "w-full min-h-10 rounded-xl bg-neutral-950/68 px-4 py-2.5 text-sm text-white placeholder:text-neutral-500 ring-1 ring-inset ring-white/[0.10] transition focus:outline-none focus:ring-white/[0.18]";
 export const tabBaseClass =
@@ -114,7 +114,7 @@ export function getMattePillClass(tone: MattePillTone = "neutral", className?: s
 }
 
 export function getMatteDotClass(tone: MattePillTone = "neutral", className?: string) {
-  return cx("h-1.5 w-1.5 rounded-full", matteDotToneClass[tone], className);
+  return cx("h-1.5 w-1.5 shrink-0 rounded-full", matteDotToneClass[tone], className);
 }
 
 export function LiveStatusDot({

@@ -678,7 +678,7 @@ function MatchStatusPill({ status }: { status: string }) {
   };
   const c = config[status] || config.NEGOTIATING;
   return (
-    <span className={getMattePillClass("neutral", `${c.text} text-[11px]`)}>
+    <span className={getMattePillClass("neutral", c.text)}>
       <span className={getMatteDotClass(c.dot)} />
       {c.label}
     </span>
