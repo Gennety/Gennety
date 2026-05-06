@@ -918,6 +918,9 @@ function InstantWakeSection({
   const [testing, setTesting] = useState(false);
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [wakeTesting, setWakeTesting] = useState(false);
+  const [wakeTestMessage, setWakeTestMessage] = useState<string | null>(null);
+  const [wakeTestOk, setWakeTestOk] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [promptLoading, setPromptLoading] = useState(false);
@@ -1024,10 +1027,41 @@ function InstantWakeSection({
     }
   };
 
+  const handleWakeTest = async () => {
+    setWakeTesting(true);
+    setWakeTestMessage(null);
+    setWakeTestOk(null);
+    try {
+      const res = await fetch("/api/settings/wake/test", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to test Wakeup");
+      }
+
+      onUpdate({
+        wakeStreamConnected: Boolean(data.wakeStreamConnected),
+        wakeStreamConnectionCount: data.connectionCount ?? 0,
+        wakeStreamLastConnectedAt: data.wakeStreamLastConnectedAt ?? null,
+        wakeStreamLastSeenAt: data.wakeStreamLastSeenAt ?? null,
+        wakeStreamLastDisconnectedAt: data.wakeStreamLastDisconnectedAt ?? null,
+        wakeStreamLastError: data.wakeStreamLastError ?? null,
+        wakeDeliveryMode:
+          data.channel === "stream" || data.channel === "webhook" ? data.channel : "polling",
+      });
+      setWakeTestOk(Boolean(data.ok));
+      setWakeTestMessage(data?.message ?? (data.ok ? "Wakeup test sent." : "Wakeup stream is not connected."));
+    } catch (e) {
+      setWakeTestOk(false);
+      setWakeTestMessage(e instanceof Error ? e.message : "Failed to test Wakeup");
+    } finally {
+      setWakeTesting(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    setTestMessage(null);
-    setTestError(null);
+    setWakeTestMessage(null);
+    setWakeTestOk(null);
     try {
       await onRefresh();
     } finally {
@@ -1098,8 +1132,45 @@ function InstantWakeSection({
               </p>
             )}
 
+            <div className="mt-3 grid gap-1 text-[11px] text-neutral-600 sm:grid-cols-3">
+              <p>
+                Mode:{" "}
+                <span className="text-neutral-400">
+                  {settings.wakeDeliveryMode === "stream"
+                    ? "Realtime stream"
+                    : settings.wakeDeliveryMode === "webhook"
+                    ? "Legacy webhook"
+                    : "Polling fallback"}
+                </span>
+              </p>
+              <p>
+                Live streams:{" "}
+                <span className="text-neutral-400">{settings.wakeStreamConnectionCount}</span>
+              </p>
+              <p>
+                Last contact:{" "}
+                <span className="text-neutral-400">
+                  {formatWakeTimestamp(settings.wakeStreamLastSeenAt) ?? "Not yet"}
+                </span>
+              </p>
+            </div>
+
+            {wakeTestMessage && (
+              <p className={`mt-2 text-xs ${wakeTestOk ? "text-green-400" : "text-amber-300"}`}>
+                {wakeTestMessage}
+              </p>
+            )}
+
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex flex-wrap justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleWakeTest}
+              disabled={wakeTesting}
+              className={PRIMARY_BUTTON_SM}
+            >
+              {wakeTesting ? "Testing..." : "Test Wakeup"}
+            </button>
             <button
               type="button"
               onClick={handleRefresh}
