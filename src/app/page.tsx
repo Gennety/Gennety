@@ -227,9 +227,23 @@ export default function LandingPage() {
           <div className="hero-cta mt-7">
             <a
               href={`${appUrl}/login`}
-              className={cx(primaryButtonClass, "rounded-full px-6")}
+              className={cx(primaryButtonClass, "group gap-2 rounded-full px-6")}
             >
-              {t("common.getStarted")} <span aria-hidden="true">&rarr;</span>
+              <span>{t("common.getStarted")}</span>
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover:translate-x-0.5"
+              >
+                <path
+                  d="M3.5 8h8m0 0-3-3m3 3-3 3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
             </a>
           </div>
         </div>
@@ -349,9 +363,26 @@ export default function LandingPage() {
         <div className="mt-8">
           <a
             href={`${appUrl}/login`}
-            className={cx(primaryButtonClass, "rounded-full px-6 shadow-[0_0_80px_rgba(255,255,255,0.06)]")}
+            className={cx(
+              primaryButtonClass,
+              "group gap-2 rounded-full px-6 shadow-[0_0_80px_rgba(255,255,255,0.06)]"
+            )}
           >
-            {t("common.getStarted")} <span aria-hidden="true">&rarr;</span>
+            <span>{t("common.getStarted")}</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              className="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover:translate-x-0.5"
+            >
+              <path
+                d="M3.5 8h8m0 0-3-3m3 3-3 3"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+            </svg>
           </a>
         </div>
       </section>
