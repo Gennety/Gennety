@@ -1072,11 +1072,17 @@ function InstantWakeSection({
         wakeDeliveryMode:
           data.channel === "stream" || data.channel === "webhook" ? data.channel : "polling",
       });
-      setWakeTestOk(Boolean(data.ok));
+      setWakeTestOk(
+        data?.ownerConfirmed === true
+          ? true
+          : data?.agentReceived === true
+            ? null
+            : false
+      );
       setWakeTestMessage(
         data?.message ??
           (data.ok
-            ? "Wakeup test sent. OpenClaw should confirm to you in its normal channel."
+            ? "Wakeup test completed. OpenClaw confirmed delivery to you."
             : "Wakeup stream is not connected.")
       );
     } catch (e) {
@@ -1185,7 +1191,15 @@ function InstantWakeSection({
             </div>
 
             {wakeTestMessage && (
-              <p className={`mt-2 text-xs ${wakeTestOk ? "text-green-400" : "text-amber-300"}`}>
+              <p
+                className={`mt-2 text-xs ${
+                  wakeTestOk === true
+                    ? "text-green-400"
+                    : wakeTestOk === false
+                      ? "text-amber-300"
+                      : "text-neutral-300"
+                }`}
+              >
                 {wakeTestMessage}
               </p>
             )}

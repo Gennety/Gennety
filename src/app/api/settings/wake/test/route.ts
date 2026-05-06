@@ -7,6 +7,38 @@ import { getWakeStreamConnectionCount } from "@/lib/services/agent-wake-stream";
 import { signalAgentWork } from "@/lib/services/agent-delivery";
 import { createInboxEvent } from "@/lib/services/inbox";
 
+const WAKE_TEST_ACK_TIMEOUT_MS = 12_000;
+const WAKE_TEST_POLL_MS = 600;
+
+async function waitForWakeTestOutcome(eventId: string) {
+  const startedAt = Date.now();
+  let event = await prisma.inboxEvent.findUnique({
+    where: { id: eventId },
+    select: {
+      deliveredAt: true,
+      dismissedAt: true,
+    },
+  });
+
+  while (event && !event.dismissedAt && Date.now() - startedAt < WAKE_TEST_ACK_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, WAKE_TEST_POLL_MS));
+    event = await prisma.inboxEvent.findUnique({
+      where: { id: eventId },
+      select: {
+        deliveredAt: true,
+        dismissedAt: true,
+      },
+    });
+  }
+
+  return {
+    agentReceived: Boolean(event?.deliveredAt),
+    ownerConfirmed: Boolean(event?.dismissedAt),
+    deliveredAt: event?.deliveredAt ?? null,
+    dismissedAt: event?.dismissedAt ?? null,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const rateLimited = rateLimit(request, {
@@ -78,6 +110,7 @@ export async function POST(request: NextRequest) {
       referenceId: confirmationEvent.id,
       urgency: "normal",
     });
+    const confirmation = await waitForWakeTestOutcome(confirmationEvent.id);
 
     const updated = await prisma.agent.findUnique({
       where: { id: agent.id },
@@ -89,18 +122,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const ok = result.channel === "stream" && result.delivered;
+    const wakeStreamConnected = connectionCount > 0 || result.channel === "stream";
+    const ok = confirmation.ownerConfirmed;
+
+    let message =
+      "Realtime stream was not available when the test ran. Polling fallback still works.";
+
+    if (wakeStreamConnected && result.delivered && confirmation.ownerConfirmed) {
+      message =
+        "Wakeup test completed. OpenClaw confirmed that it delivered the message to you in its normal communication channel.";
+    } else if (wakeStreamConnected && result.delivered && confirmation.agentReceived) {
+      message =
+        "Wakeup reached OpenClaw and it checked in, but it has not confirmed delivery to you yet. This usually means the owner-notification step inside OpenClaw did not complete.";
+    } else if (wakeStreamConnected && result.delivered) {
+      message =
+        "Wakeup signal was sent, but OpenClaw did not complete check_in in time. The realtime channel is live, but the agent did not finish the full notification loop.";
+    }
 
     return NextResponse.json({
       ok,
       channel: result.channel,
       delivered: result.delivered,
+      agentReceived: confirmation.agentReceived,
+      ownerConfirmed: confirmation.ownerConfirmed,
       connectionCount: result.connectionCount,
       inboxEventId: confirmationEvent.id,
-      message: ok
-        ? "Wakeup test sent. OpenClaw should call check_in immediately and confirm to you in its normal communication channel."
-        : "Realtime stream was not available when the test ran. Polling fallback still works.",
-      wakeStreamConnected: ok,
+      deliveredAt: confirmation.deliveredAt,
+      dismissedAt: confirmation.dismissedAt,
+      message,
+      wakeStreamConnected,
       wakeStreamLastConnectedAt: updated?.wakeStreamLastConnectedAt ?? null,
       wakeStreamLastSeenAt: updated?.wakeStreamLastSeenAt ?? null,
       wakeStreamLastDisconnectedAt: updated?.wakeStreamLastDisconnectedAt ?? null,
