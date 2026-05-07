@@ -144,6 +144,47 @@ function safeJson(value) {
   return JSON.stringify(value, null, 2);
 }
 
+function getOpenClawGatewayLogCandidates() {
+  const logDir = "/tmp/openclaw";
+  if (!fs.existsSync(logDir)) return [];
+
+  return fs
+    .readdirSync(logDir)
+    .filter((name) => name.startsWith("openclaw-") && name.endsWith(".log"))
+    .map((name) => path.join(logDir, name))
+    .sort((left, right) => {
+      const leftStat = fs.statSync(left);
+      const rightStat = fs.statSync(right);
+      return rightStat.mtimeMs - leftStat.mtimeMs;
+    });
+}
+
+function inferTelegramTargetFromGatewayLogs() {
+  const files = getOpenClawGatewayLogCandidates().slice(0, 3);
+
+  for (const filePath of files) {
+    const raw = fs.readFileSync(filePath, "utf8");
+    const lines = raw.split("\n");
+
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      if (!line) continue;
+
+      const sendMatch = line.match(/telegram sendMessage ok chat=([^\s"]+)/);
+      if (sendMatch?.[1]) {
+        return sendMatch[1];
+      }
+
+      const jsonChatMatch = line.match(/"chat[_ ]id"[:=]\s*"?(?<id>-?\d+)/i);
+      if (jsonChatMatch?.groups?.id) {
+        return jsonChatMatch.groups.id;
+      }
+    }
+  }
+
+  return null;
+}
+
 function formatOwnerMessage(event) {
   const payload = event.payload && typeof event.payload === "object" ? event.payload : {};
 
@@ -488,22 +529,47 @@ class GennetyOpenClawBridge {
   }
 
   async deliverOwnerNotification(event) {
+    const ownerMessage = formatOwnerMessage(event).text;
+
     if (this.config.delivery.dryRun) {
       this.log(`dry-run owner notification: ${event.type}`);
-      this.log(formatOwnerMessage(event).text);
+      this.log(ownerMessage);
       return true;
     }
 
     if (this.config.delivery.mode === "message_send") {
-      return this.deliverViaMessageSend(formatOwnerMessage(event).text);
+      return this.deliverViaMessageSend(ownerMessage);
     }
 
     const prompt = buildOwnerDeliveryPrompt(event);
-    return this.runOpenClawAgentTurn({
-      prompt,
-      deliver: true,
-      sessionId: this.config.delivery.sessionId,
-    });
+    try {
+      return await this.runOpenClawAgentTurn({
+        prompt,
+        deliver: true,
+        sessionId: this.config.delivery.sessionId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const routeMissing = message.includes("delivery channel is required");
+
+      if (!routeMissing) {
+        throw error;
+      }
+
+      const inferredTelegramTarget = inferTelegramTargetFromGatewayLogs();
+      if (!inferredTelegramTarget) {
+        throw error;
+      }
+
+      this.log(
+        `owner delivery route missing for ${event.type}; falling back to telegram target ${inferredTelegramTarget}`
+      );
+
+      return this.deliverViaMessageSend(ownerMessage, {
+        channel: "telegram",
+        target: inferredTelegramTarget,
+      });
+    }
   }
 
   async runBackgroundTask(task) {
@@ -558,8 +624,12 @@ class GennetyOpenClawBridge {
     return true;
   }
 
-  async deliverViaMessageSend(message) {
-    if (!this.config.delivery.channel || !this.config.delivery.target) {
+  async deliverViaMessageSend(message, overrides = {}) {
+    const channel = overrides.channel ?? this.config.delivery.channel;
+    const target = overrides.target ?? this.config.delivery.target;
+    const account = overrides.account ?? this.config.delivery.account;
+
+    if (!channel || !target) {
       throw new Error("message_send mode requires delivery.channel and delivery.target");
     }
 
@@ -567,15 +637,15 @@ class GennetyOpenClawBridge {
       "message",
       "send",
       "--channel",
-      this.config.delivery.channel,
+      channel,
       "--target",
-      this.config.delivery.target,
+      target,
       "--message",
       message,
     ];
 
-    if (this.config.delivery.account) {
-      args.push("--account", this.config.delivery.account);
+    if (account) {
+      args.push("--account", account);
     }
 
     const result = await runCommand(this.config.openclaw.bin, args);

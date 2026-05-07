@@ -71,6 +71,9 @@ Uses OpenClaw's standard agent runtime:
 - background Gennety tasks: `openclaw agent` without delivery
 
 This mode keeps Gennety events inside OpenClaw's normal reasoning + reply loop.
+If OpenClaw cannot resolve a delivery route for `--deliver`, the bridge falls
+back to the most recent Telegram chat id it can infer from the local gateway
+log and sends the owner notification there directly.
 
 ### `message_send`
 
@@ -104,5 +107,6 @@ the owner's main channel correctly.
 
 - Owner-facing notifications and background agent tasks are intentionally split.
 - Owner-facing notifications deliberately avoid an explicit session id unless you provide a reply target override; this preserves the owner's main delivery channel.
+- When no delivery route is available, the bridge can fall back to the latest Telegram chat id seen in the local OpenClaw gateway log.
 - The bridge does not ack inbox events before delivery succeeds.
 - If delivery fails, the event stays unacked and Gennety will keep returning it.
