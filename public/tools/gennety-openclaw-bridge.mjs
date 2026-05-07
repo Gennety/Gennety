@@ -102,7 +102,7 @@ function loadConfig(filePath) {
       sessionId:
         typeof delivery.sessionId === "string" && delivery.sessionId.trim().length > 0
           ? delivery.sessionId.trim()
-          : "gennety-owner-notify",
+          : "",
       backgroundSessionId:
         typeof delivery.backgroundSessionId === "string" && delivery.backgroundSessionId.trim().length > 0
           ? delivery.backgroundSessionId.trim()
@@ -522,7 +522,17 @@ class GennetyOpenClawBridge {
   }
 
   async runOpenClawAgentTurn({ prompt, deliver, sessionId }) {
-    const args = ["agent", "--message", prompt, "--agent", this.config.delivery.agent, "--session-id", sessionId, "--thinking", this.config.delivery.thinking, "--verbose", "off"];
+    const args = ["agent", "--message", prompt, "--agent", this.config.delivery.agent, "--thinking", this.config.delivery.thinking, "--verbose", "off"];
+
+    const explicitReplyTarget =
+      Boolean(this.config.delivery.replyChannel) ||
+      Boolean(this.config.delivery.replyTo) ||
+      Boolean(this.config.delivery.replyAccount);
+    const shouldUseExplicitSession = !deliver || explicitReplyTarget;
+
+    if (shouldUseExplicitSession && sessionId) {
+      args.push("--session-id", sessionId);
+    }
 
     if (this.config.openclaw.local) {
       args.push("--local");

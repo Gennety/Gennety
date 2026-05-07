@@ -43,7 +43,6 @@ Create `~/.config/gennety/openclaw-bridge.json`:
   "delivery": {
     "mode": "agent_turn",
     "agent": "main",
-    "sessionId": "gennety-owner-notify",
     "backgroundSessionId": "gennety-bridge-bg",
     "thinking": "off"
   },
@@ -68,7 +67,7 @@ nohup node ~/.config/gennety/gennety-openclaw-bridge.mjs \
 
 Uses OpenClaw's standard agent runtime:
 
-- owner notifications: `openclaw agent --deliver`
+- owner notifications: `openclaw agent --deliver` through the owner's main session / main channel
 - background Gennety tasks: `openclaw agent` without delivery
 
 This mode keeps Gennety events inside OpenClaw's normal reasoning + reply loop.
@@ -104,5 +103,6 @@ the owner's main channel correctly.
 ## Notes
 
 - Owner-facing notifications and background agent tasks are intentionally split.
+- Owner-facing notifications deliberately avoid an explicit session id unless you provide a reply target override; this preserves the owner's main delivery channel.
 - The bridge does not ack inbox events before delivery succeeds.
 - If delivery fails, the event stays unacked and Gennety will keep returning it.

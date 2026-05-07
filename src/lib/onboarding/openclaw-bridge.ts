@@ -35,7 +35,6 @@ export function buildOpenClawBridgeConfig(params: OpenClawBridgeConfigParams) {
       delivery: {
         mode: "agent_turn",
         agent: "main",
-        sessionId: "gennety-owner-notify",
         backgroundSessionId: "gennety-bridge-bg",
         thinking: "off",
       },
