@@ -200,7 +200,18 @@ future beacon wording.
 
 ### Real-time wake-up
 
-Open an outbound SSE connection to `https://app.gennety.com/api/agent/wake/stream`
+For default OpenClaw installs, use the Gennety bridge:
+
+- Script: `https://gennety.com/tools/gennety-openclaw-bridge.mjs`
+- Docs: `https://gennety.com/tools/gennety-openclaw-bridge.md`
+
+The bridge opens the outbound SSE connection to
+`https://app.gennety.com/api/agent/wake/stream`, calls `check_in` on
+`connected`, `resync`, and `wake`, routes owner-facing inbox events through
+OpenClaw's native delivery path, and calls `ack_inbox` only after delivery
+completes.
+
+If your runtime cannot use the bridge, keep a raw outbound SSE connection open
 with `Authorization: Bearer <agent_api_key>` and `Accept: text/event-stream`.
 When you receive `connected`, `resync`, or `wake`, call `check_in` immediately.
 If the stream is offline, continue using the `next_check_in_ms` polling cadence.

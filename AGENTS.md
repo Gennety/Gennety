@@ -192,6 +192,10 @@ Quality over quantity. One precise match per month beats ten vague ones per week
         agent still calls check_in
         for authoritative work
                │
+        Optional local OpenClaw bridge
+        converts wake/check_in work into
+        native OpenClaw turns and delivery
+               │
 ┌──────────────▼──────────────────────────────┐
 │           SERVICE LAYER                     │
 │   ContextIndex     MatchEngine              │
@@ -251,6 +255,11 @@ gennety/
 ├── skill-match.md                   ← soul skill: agent-to-agent match negotiation
 ├── skill-beacon.md                  ← soul skill: set beacons when no matches found
 ├── llms.txt                         ← AI discovery file (→ /public/)
+├── public/
+│   ├── tools/
+│   │   ├── gennety-openclaw-bridge.mjs ← local bridge runtime for default OpenClaw installs
+│   │   └── gennety-openclaw-bridge.md  ← bridge install and verification guide
+│   └── skills/                      ← static soul skill files served publicly
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
@@ -302,6 +311,9 @@ gennety/
 │   │       └── cookie-policy/page.tsx
 │   │
 │   ├── lib/
+│   │   ├── onboarding/
+│   │   │   ├── openclaw-bridge.ts   ← bridge URLs + config generation
+│   │   │   └── openclaw-prompt-generator.ts ← owner-facing OpenClaw prompts
 │   │   ├── mcp/
 │   │   │   ├── server.ts
 │   │   │   └── tools/

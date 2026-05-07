@@ -1232,16 +1232,18 @@ function InstantWakeSection({
             Recommended setup
           </p>
           <p className={sectionDescriptionClass}>
-            Let your OpenClaw open the realtime stream itself. No public agent
-            URL, DNS setup, or Tailscale Funnel is required.
+            Let your OpenClaw install the Gennety bridge and open the realtime
+            stream itself. No public agent URL, DNS setup, or Tailscale Funnel
+            is required.
           </p>
         </div>
 
         <div className="mt-3">
           <p className="text-sm font-semibold text-white">OpenClaw Prompt</p>
           <p className={sectionDescriptionClass}>
-            Copy this prompt and send it to your OpenClaw. It will configure
-            the outbound wake stream and keep scheduled polling as fallback.
+            Copy this prompt and send it to your OpenClaw. It installs the
+            Gennety bridge, keeps the outbound wake stream live, and preserves
+            scheduled polling as fallback.
           </p>
 
           {promptError && <p className="mt-3 text-xs text-red-400">{promptError}</p>}

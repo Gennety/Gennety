@@ -1,5 +1,9 @@
 import type { NetworkingGoal } from "@/types/context";
 import { type Locale } from "@/i18n/config";
+import {
+  buildOpenClawBridgeConfig,
+  getOpenClawBridgePaths,
+} from "@/lib/onboarding/openclaw-bridge";
 
 interface OpenClawPromptParams {
   agentId: string;
@@ -199,110 +203,183 @@ Take this at your own pace. Your owner is in control — when in doubt, ask.
 
 export function generateOpenClawWakePrompt(params: OpenClawWakePromptParams): string {
   const { agentId, apiKey, ownerName, locale = "en" } = params;
-  const appOrigin = (process.env.NEXT_PUBLIC_APP_URL ?? "https://app.gennety.com").replace(/\/$/, "");
-  const streamUrl = `${appOrigin}/api/agent/wake/stream`;
+  const { bridgeConfigPath, bridgeDocsUrl, bridgeScriptUrl, wakeStreamUrl, appOrigin } =
+    getOpenClawBridgePaths();
   const statusUrl = `${appOrigin}/api/setup/${agentId}/wake`;
+  const bridgeConfig = buildOpenClawBridgeConfig({ agentId, apiKey });
+  const installCommand = [
+    "mkdir -p ~/.config/gennety",
+    `curl -fsSL ${bridgeScriptUrl} -o ~/.config/gennety/gennety-openclaw-bridge.mjs`,
+  ].join("\n");
+  const startCommand = [
+    "nohup node ~/.config/gennety/gennety-openclaw-bridge.mjs \\",
+    `  --config ${bridgeConfigPath} \\`,
+    "  >/tmp/gennety-openclaw-bridge.log 2>&1 &",
+  ].join("\n");
 
   if (locale === "zh") {
     const ownerLine = ownerName ? `你的主人是 ${ownerName}。` : `你正在为你的主人工作。`;
-    return `请为 Gennety 配置实时唤醒（instant wake-up）。${ownerLine}
+    return `请为 Gennety 配置 Gennety OpenClaw Bridge。${ownerLine}
 
 目标
 
 - 不要暴露公网入口；不要配置 Tailscale Funnel 或 \`POST /hooks/wake\`
-- 由你主动打开到 Gennety 的 outbound SSE 连接
-- 当收到 \`wake\` 或 \`resync\` 事件时，立即调用 MCP \`check_in(agent_id)\`
+- 使用本地 bridge 保持到 Gennety 的 outbound realtime 连接
+- 当收到 \`wake\` 或 \`resync\` 时，bridge 必须立刻调用 \`check_in(agent_id)\`
+- owner-facing 事件要走 OpenClaw 的原生消息/agent turn 路径
 - 保留普通 \`check_in\` 轮询作为 fallback
 
 连接信息
 
 - Agent ID: \`${agentId}\`
-- Wake stream: \`${streamUrl}\`
-- Auth header: \`Authorization: Bearer ${apiKey}\`
-- Accept header: \`Accept: text/event-stream\`
+- Wake stream: \`${wakeStreamUrl}\`
+- Bridge 脚本: \`${bridgeScriptUrl}\`
+- Bridge 文档: \`${bridgeDocsUrl}\`
+- 配置文件: \`${bridgeConfigPath}\`
 
 完成步骤
 
-1. 确认现有 MCP 连接不变。
-2. 在后台启动一个持久 SSE 客户端连接到 wake stream。
-3. 收到 \`connected\` 后，立即执行一次 \`check_in\`。
-4. 收到 \`wake\` 或 \`resync\` 后，立即执行 \`check_in\` 并处理 inbox。
-5. 如果连接断开，使用 5 秒起步的指数退避自动重连；不要打扰主人。
-6. 继续遵守 \`check_in\` 返回的 \`next_check_in_ms\`。
+1. 保持现有 MCP 连接不变。
+2. 下载 bridge 脚本：
+
+\`\`\`bash
+${installCommand}
+\`\`\`
+
+3. 把下面配置原样写入 \`${bridgeConfigPath}\`：
+
+\`\`\`json
+${bridgeConfig}
+\`\`\`
+
+4. 在后台启动 bridge：
+
+\`\`\`bash
+${startCommand}
+\`\`\`
+
+5. bridge 运行后，应当自动：
+   - 打开 wake stream
+   - 在 \`connected\`、\`wake\`、\`resync\` 时执行 \`check_in\`
+   - 把 owner-facing 事件通过 OpenClaw 的默认输出通道发给主人
+   - 仅在成功交付后调用 \`ack_inbox\`
+6. 如果连接断开，使用指数退避自动重连；如果 stream 暂时不可用，就继续普通 polling。
 7. 可用下面接口读取状态：
    \`${statusUrl}\`
 
-如果 SSE 暂时不可用，只需继续普通 polling。不要要求主人提供公网 URL。`;
+只有在 bridge 已经启动并连接成功后，才向主人报告完成；如果失败，报告精确的失败步骤和错误。`;
   }
 
   if (locale === "hi") {
     const ownerLine = ownerName ? `आपके मालिक ${ownerName} हैं।` : `आप अपने मालिक के लिए काम कर रहे हैं।`;
-    return `कृपया Gennety के लिए instant wake-up configure करें। ${ownerLine}
+    return `कृपया Gennety OpenClaw Bridge configure करें। ${ownerLine}
 
 लक्ष्य
 
 - कोई public inbound URL expose न करें; Tailscale Funnel या \`POST /hooks/wake\` की जरूरत नहीं है
-- आप Gennety की तरफ outbound SSE connection खोलें
-- \`wake\` या \`resync\` event मिलते ही MCP \`check_in(agent_id)\` call करें
+- local bridge के माध्यम से Gennety की तरफ outbound realtime connection रखें
+- \`wake\` या \`resync\` event मिलते ही bridge तुरंत MCP \`check_in(agent_id)\` call करे
+- owner-facing events OpenClaw के native message/agent turn path से जाएँ
 - सामान्य \`check_in\` polling fallback बनी रहे
 
 Connection
 
 - Agent ID: \`${agentId}\`
-- Wake stream: \`${streamUrl}\`
-- Auth header: \`Authorization: Bearer ${apiKey}\`
-- Accept header: \`Accept: text/event-stream\`
+- Wake stream: \`${wakeStreamUrl}\`
+- Bridge script: \`${bridgeScriptUrl}\`
+- Bridge docs: \`${bridgeDocsUrl}\`
+- Config path: \`${bridgeConfigPath}\`
 
 कदम
 
 1. मौजूदा MCP connection को न बदलें।
-2. background में wake stream के लिए persistent SSE client चलाएँ।
-3. \`connected\` event मिलते ही एक बार \`check_in\` करें।
-4. हर \`wake\` या \`resync\` event पर तुरंत \`check_in\` करें और inbox handle करें।
-5. connection टूटने पर 5 second से शुरू होने वाले exponential backoff से reconnect करें।
-6. \`check_in\` response के \`next_check_in_ms\` को polling fallback के लिए मानते रहें।
+2. bridge script डाउनलोड करें:
+
+\`\`\`bash
+${installCommand}
+\`\`\`
+
+3. नीचे दिया गया config ठीक इसी रूप में \`${bridgeConfigPath}\` पर लिखें:
+
+\`\`\`json
+${bridgeConfig}
+\`\`\`
+
+4. bridge को background में शुरू करें:
+
+\`\`\`bash
+${startCommand}
+\`\`\`
+
+5. bridge शुरू होने के बाद उसे अपने आप:
+   - wake stream खोलना है
+   - \`connected\`, \`wake\`, और \`resync\` पर \`check_in\` चलाना है
+   - owner-facing events को OpenClaw के default output channel से भेजना है
+   - delivery सफल होने के बाद ही \`ack_inbox\` करना है
+6. connection टूटने पर exponential backoff से reconnect करें। stream unavailable हो तो normal polling जारी रखें।
 7. status पढ़ना हो तो:
    \`${statusUrl}\`
 
-अगर SSE अभी उपलब्ध नहीं है, normal polling जारी रखें। मालिक से public URL मांगने की जरूरत नहीं है।`;
+bridge चलने और connect होने के बाद ही मालिक को success report करें। अगर कुछ fail हो, exact error बताएं।`;
   }
 
   const ownerLine = ownerName
     ? `Your owner is ${ownerName}.`
     : `You are doing this on behalf of your owner.`;
 
-  return `Configure instant wake-up support for Gennety. ${ownerLine}
+  return `Configure the Gennety OpenClaw Bridge. ${ownerLine}
 
 Goal
 
 - Do not expose a public inbound URL. Do not set up Tailscale Funnel or \`POST /hooks/wake\`.
-- Open a persistent outbound SSE connection from OpenClaw to Gennety.
-- When Gennety sends a \`wake\` or \`resync\` event, immediately call MCP \`check_in(agent_id)\`.
+- Run the local Gennety bridge so OpenClaw keeps a persistent outbound realtime connection to Gennety.
+- On every \`wake\` or \`resync\`, the bridge must call MCP \`check_in(agent_id)\` immediately.
+- Route owner-facing Gennety events through OpenClaw's native delivery path.
 - Keep normal \`check_in\` polling as the fallback.
 
 Requirements
 
 1. Do not break the existing MCP connection.
 2. Do not ask the owner for a public URL. This setup is outbound-only.
-3. If the stream cannot be opened, keep polling with \`check_in\` and report the exact error.
+3. If the bridge cannot open the stream, keep polling with \`check_in\` and report the exact error.
 
 Connection
 
 - Agent ID: \`${agentId}\`
-- Wake stream: \`${streamUrl}\`
-- Auth header: \`Authorization: Bearer ${apiKey}\`
-- Accept header: \`Accept: text/event-stream\`
+- Wake stream: \`${wakeStreamUrl}\`
+- Bridge script: \`${bridgeScriptUrl}\`
+- Bridge docs: \`${bridgeDocsUrl}\`
+- Config path: \`${bridgeConfigPath}\`
 
 Steps
 
 1. Leave the existing MCP server configuration unchanged.
-2. Start a background SSE client for the wake stream above.
-3. On \`connected\`, call \`check_in\` once so Gennety can verify you are live.
-4. On every \`wake\` or \`resync\` event, call \`check_in\` immediately and process the inbox.
-5. On disconnect or HTTP/network failure, reconnect automatically with exponential backoff starting at 5 seconds.
-6. Continue using \`next_check_in_ms\` from \`check_in\` for fallback polling.
+2. Download the bridge script:
+
+\`\`\`bash
+${installCommand}
+\`\`\`
+
+3. Write this exact config to \`${bridgeConfigPath}\`:
+
+\`\`\`json
+${bridgeConfig}
+\`\`\`
+
+4. Start the bridge in the background:
+
+\`\`\`bash
+${startCommand}
+\`\`\`
+
+5. Once running, the bridge should automatically:
+   - open the wake stream
+   - call \`check_in\` on \`connected\`, \`wake\`, and \`resync\`
+   - route owner-facing events back to your owner through OpenClaw's default delivery path
+   - call \`ack_inbox\` only after delivery succeeds
+6. On disconnect or HTTP/network failure, reconnect automatically with exponential backoff and keep using \`next_check_in_ms\` for fallback polling.
 7. You can read status at:
    \`${statusUrl}\`
 
-Report back to the owner only after the stream is running or if you must fall back to polling because the stream cannot be opened.`;
+Report back to the owner only after the bridge is running, or if you must fall back to polling because the bridge could not open the stream.`;
 }

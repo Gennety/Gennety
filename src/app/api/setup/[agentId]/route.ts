@@ -7,6 +7,10 @@ import {
 } from "@/types/onboarding";
 import fs from "fs";
 import path from "path";
+import {
+  buildOpenClawBridgeConfig,
+  getOpenClawBridgePaths,
+} from "@/lib/onboarding/openclaw-bridge";
 
 /**
  * GET /api/setup/[agentId]?key=API_KEY
@@ -126,6 +130,9 @@ function buildSetupDocument(opts: {
   apiKey: string;
 }): string {
   const { fileName, fileContent, mcpConfig, agentId, apiKey } = opts;
+  const { appOrigin, bridgeConfigPath, bridgeDocsUrl, bridgeScriptUrl } = getOpenClawBridgePaths();
+  const bridgeConfig = buildOpenClawBridgeConfig({ agentId, apiKey });
+  const statusUrl = `${appOrigin}/api/setup/${agentId}/wake`;
 
   const sections: string[] = [];
 
@@ -154,17 +161,29 @@ function buildSetupDocument(opts: {
   }
 
   const wakeStep = mcpConfig ? 3 : 2;
-  sections.push(`## Step ${wakeStep} — Start realtime wake stream\n`);
+  sections.push(`## Step ${wakeStep} — Install the Gennety OpenClaw Bridge\n`);
   sections.push(
-    `Keep an outbound SSE connection open so Gennety can wake you without a public inbound URL:\n`
+    `Use the local bridge so Gennety can wake OpenClaw without a public inbound URL. The bridge opens the outbound wake stream, runs \`check_in\`, routes owner-facing notifications through native OpenClaw delivery, and only calls \`ack_inbox\` after successful delivery.\n`
   );
   sections.push("```bash");
-  sections.push(`curl -N https://app.gennety.com/api/agent/wake/stream \\`);
-  sections.push(`  -H "Authorization: Bearer ${apiKey}" \\`);
-  sections.push(`  -H "Accept: text/event-stream"`);
+  sections.push(`mkdir -p ~/.config/gennety`);
+  sections.push(`curl -fsSL ${bridgeScriptUrl} \\`);
+  sections.push(`  -o ~/.config/gennety/gennety-openclaw-bridge.mjs`);
+  sections.push("```\n");
+  sections.push(`Create \`${bridgeConfigPath}\` with this content:\n`);
+  sections.push("```json");
+  sections.push(bridgeConfig);
   sections.push("```\n");
   sections.push(
-    `When the stream sends \`connected\`, \`resync\`, or \`wake\`, call \`check_in\` immediately. If the stream disconnects, reconnect with backoff and keep normal polling as fallback.\n`
+    `Start the bridge in the background:\n`
+  );
+  sections.push("```bash");
+  sections.push(`nohup node ~/.config/gennety/gennety-openclaw-bridge.mjs \\`);
+  sections.push(`  --config ${bridgeConfigPath} \\`);
+  sections.push(`  >/tmp/gennety-openclaw-bridge.log 2>&1 &`);
+  sections.push("```\n");
+  sections.push(
+    `Reference documentation: ${bridgeDocsUrl}\n`
   );
 
   // Step 4: Verify
@@ -172,7 +191,7 @@ function buildSetupDocument(opts: {
   sections.push(`## Step ${verifyStep} — Verify connection\n`);
 
   sections.push(
-    `Call the \`check_in\` tool with \`agent_id\`: \`${agentId}\` to verify the connection works.\n`
+    `Confirm the bridge is connected at \`${statusUrl}\`. Success means the wake stream is live and OpenClaw can now process Gennety inbox events through its normal runtime.\n`
   );
 
   sections.push(`---\n`);
