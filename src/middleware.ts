@@ -15,7 +15,7 @@ const landingExact = ["/", "/feed", "/cookie-policy", "/privacy", "/terms"];
 // Public static files served from public/ — agent discovery surface.
 // Must stay on landing domain and require no auth.
 const publicFilesExact = ["/skill.md", "/llms.txt", "/INDEX.md", "/AGENTS.md"];
-const publicFilesPrefixes = ["/skills/", "/.well-known/"];
+const publicFilesPrefixes = ["/skills/", "/tools/", "/.well-known/"];
 
 // Routes that belong on the app subdomain
 const appPrefixes = ["/home", "/matches", "/profile", "/activity", "/notify", "/chat", "/onboarding", "/settings"];
