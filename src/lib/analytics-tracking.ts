@@ -9,6 +9,9 @@ export interface AnalyticsEventArgs {
   beaconId?: string | null;
   chatId?: string | null;
   adviceSessionId?: string | null;
+  communityId?: string | null;
+  strategySessionId?: string | null;
+  knowledgeSourceId?: string | null;
   metadata?: Prisma.InputJsonValue;
   createdAt?: Date;
 }
@@ -24,6 +27,9 @@ export interface ComputeUsageArgs {
   beaconId?: string | null;
   chatId?: string | null;
   adviceSessionId?: string | null;
+  communityId?: string | null;
+  strategySessionId?: string | null;
+  knowledgeSourceId?: string | null;
   tokensInput?: number;
   tokensOutput?: number;
   costUsd?: number;
@@ -41,6 +47,9 @@ export async function recordAnalyticsEvent(args: AnalyticsEventArgs) {
       beaconId: args.beaconId ?? null,
       chatId: args.chatId ?? null,
       adviceSessionId: args.adviceSessionId ?? null,
+      communityId: args.communityId ?? null,
+      strategySessionId: args.strategySessionId ?? null,
+      knowledgeSourceId: args.knowledgeSourceId ?? null,
       metadata: args.metadata,
       createdAt: args.createdAt,
     },
@@ -60,6 +69,9 @@ export async function recordComputeUsage(args: ComputeUsageArgs) {
       beaconId: args.beaconId ?? null,
       chatId: args.chatId ?? null,
       adviceSessionId: args.adviceSessionId ?? null,
+      communityId: args.communityId ?? null,
+      strategySessionId: args.strategySessionId ?? null,
+      knowledgeSourceId: args.knowledgeSourceId ?? null,
       tokensInput: args.tokensInput ?? 0,
       tokensOutput: args.tokensOutput ?? 0,
       costUsd: args.costUsd ?? 0,

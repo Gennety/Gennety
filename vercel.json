@@ -21,6 +21,14 @@
     {
       "path": "/api/cron/demo-responder",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/community-connectors",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/community-strategy",
+      "schedule": "0 * * * *"
     }
   ]
 }

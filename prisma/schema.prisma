@@ -30,15 +30,19 @@ model Owner {
   // Filtered out of production analytics and reputation leaderboards.
   isDemo Boolean @default(false) @map("is_demo")
 
-  createdAt      DateTime        @default(now()) @map("created_at")
-  agent          Agent?
-  accounts       Account[]
-  consentLogs    ConsentLog[]
-  blockedUsers   Block[]         @relation("Blocker")
-  blockedBy      Block[]         @relation("Blocked")
-  reports        Report[]
-  matchReactions MatchReaction[]
-  matchComments  MatchComment[]
+  createdAt                DateTime          @default(now()) @map("created_at")
+  agent                    Agent?
+  accounts                 Account[]
+  consentLogs              ConsentLog[]
+  blockedUsers             Block[]           @relation("Blocker")
+  blockedBy                Block[]           @relation("Blocked")
+  reports                  Report[]
+  matchReactions           MatchReaction[]
+  matchComments            MatchComment[]
+  communitiesOwned         Community[]       @relation("CommunityOwner")
+  communityMemberships     CommunityMember[]
+  communityInvitesSent     CommunityInvite[] @relation("CommunityInviteInviter")
+  communityInvitesReceived CommunityInvite[] @relation("CommunityInviteInvitee")
 
   @@index([isDemo])
   @@map("owners")
@@ -178,16 +182,16 @@ model AgentContext {
 }
 
 model Beacon {
-  id           String                       @id @default(cuid())
-  agentId      String                       @map("agent_id")
-  agent        Agent                        @relation(fields: [agentId], references: [id])
-  contextQuery String                       @map("context_query") // what this beacon is waiting for
-  networkingGoalFilter String?              @map("networking_goal_filter")
-  embedding    Unsupported("vector(1536)")?
-  isActive     Boolean                      @default(true) @map("is_active")
-  preservable  Boolean                      @default(true) // paused (true) vs deactivated (false)
-  createdAt    DateTime                     @default(now()) @map("created_at")
-  triggeredAt  DateTime?                    @map("triggered_at")
+  id                   String                       @id @default(cuid())
+  agentId              String                       @map("agent_id")
+  agent                Agent                        @relation(fields: [agentId], references: [id])
+  contextQuery         String                       @map("context_query") // what this beacon is waiting for
+  networkingGoalFilter String?                      @map("networking_goal_filter")
+  embedding            Unsupported("vector(1536)")?
+  isActive             Boolean                      @default(true) @map("is_active")
+  preservable          Boolean                      @default(true) // paused (true) vs deactivated (false)
+  createdAt            DateTime                     @default(now()) @map("created_at")
+  triggeredAt          DateTime?                    @map("triggered_at")
 
   @@index([isActive])
   @@map("beacons")
@@ -209,11 +213,11 @@ model Match {
   framingForB    String @map("framing_for_b") // how to present to owner B
 
   // V2 analytics fields — used for exact dashboard metrics.
-  matchSimilarity   Float?               @map("match_similarity")
-  discoverySource   MatchDiscoverySource @default(UNKNOWN) @map("discovery_source")
-  sourceBeaconId    String?              @map("source_beacon_id")
-  agentAAcceptedAt  DateTime?            @map("agent_a_accepted_at")
-  agentBAcceptedAt  DateTime?            @map("agent_b_accepted_at")
+  matchSimilarity  Float?               @map("match_similarity")
+  discoverySource  MatchDiscoverySource @default(UNKNOWN) @map("discovery_source")
+  sourceBeaconId   String?              @map("source_beacon_id")
+  agentAAcceptedAt DateTime?            @map("agent_a_accepted_at")
+  agentBAcceptedAt DateTime?            @map("agent_b_accepted_at")
 
   status       MatchStatus @default(NEGOTIATING)
   confirmedByA Boolean     @default(false) @map("confirmed_by_a")
@@ -309,15 +313,15 @@ enum MessageKind {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  chatId    String   @map("chat_id")
-  chat      Chat     @relation(fields: [chatId], references: [id])
-  fromOwner String   @map("from_owner") // owner id or "agent_a" / "agent_b" for opening messages
-  kind      MessageKind @default(HUMAN)
-  adviceSessionId String? @map("advice_session_id")
+  id              String         @id @default(cuid())
+  chatId          String         @map("chat_id")
+  chat            Chat           @relation(fields: [chatId], references: [id])
+  fromOwner       String         @map("from_owner") // owner id or "agent_a" / "agent_b" for opening messages
+  kind            MessageKind    @default(HUMAN)
+  adviceSessionId String?        @map("advice_session_id")
   adviceSession   AdviceSession? @relation(fields: [adviceSessionId], references: [id], onDelete: SetNull)
-  content   String
-  createdAt DateTime @default(now()) @map("created_at")
+  content         String
+  createdAt       DateTime       @default(now()) @map("created_at")
 
   @@index([chatId, createdAt])
   @@index([adviceSessionId])
@@ -420,6 +424,414 @@ model Block {
   @@map("blocks")
 }
 
+model Community {
+  id                         String                     @id @default(cuid())
+  ownerId                    String                     @map("owner_id")
+  owner                      Owner                      @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  slug                       String                     @unique
+  name                       String
+  description                String?                    @db.Text
+  visibility                 CommunityVisibility        @default(PRIVATE)
+  profileVisibility          CommunityProfileVisibility @default(VISIBLE) @map("profile_visibility")
+  category                   CommunityCategory?
+  specialization             CommunitySpecialization?
+  status                     CommunityStatus            @default(ACTIVE)
+  ssotEnabled                Boolean                    @default(false) @map("ssot_enabled")
+  knowledgeSummary           String?                    @map("knowledge_summary") @db.Text
+  strategyEnabled            Boolean                    @default(false) @map("strategy_enabled")
+  strategyIntervalHours      Int                        @default(72) @map("strategy_interval_hours")
+  lastStrategySessionAt      DateTime?                  @map("last_strategy_session_at")
+  nextStrategySessionAt      DateTime?                  @map("next_strategy_session_at")
+  strategyTokenLimit         Int                        @default(80000) @map("strategy_token_limit")
+  monthlyTokenLimit          Int?                       @map("monthly_token_limit")
+  judgeIterationLimit        Int                        @default(3) @map("judge_iteration_limit")
+  strategyLockUntil          DateTime?                  @map("strategy_lock_until")
+  roleChangesRequireApproval Boolean                    @default(true) @map("role_changes_require_approval")
+  createdAt                  DateTime                   @default(now()) @map("created_at")
+  updatedAt                  DateTime                   @updatedAt @map("updated_at")
+
+  members            CommunityMember[]
+  invites            CommunityInvite[]
+  inviteHandshakes   CommunityInviteHandshake[]
+  channels           CommunityChannel[]
+  knowledgeSources   CommunityKnowledgeSource[]
+  knowledgeDocuments CommunityKnowledgeDocument[]
+  knowledgeChunks    CommunityKnowledgeChunk[]
+  strategySessions   CommunityStrategySession[]
+  strategyTurns      CommunityStrategyTurn[]
+  actionProposals    CommunityActionProposal[]
+
+  @@index([ownerId])
+  @@index([visibility, status, category])
+  @@index([strategyEnabled, nextStrategySessionAt])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id                        String                @id @default(cuid())
+  communityId               String                @map("community_id")
+  community                 Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  ownerId                   String                @map("owner_id")
+  owner                     Owner                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  role                      CommunityMemberRole   @default(MEMBER)
+  status                    CommunityMemberStatus @default(ACTIVE)
+  showOnProfile             Boolean               @default(true) @map("show_on_profile")
+  hubTitle                  String?               @map("hub_title")
+  hubSpecialization         String?               @map("hub_specialization")
+  skillTags                 String[]              @default([]) @map("skill_tags")
+  capacityHoursPerWeek      Int?                  @map("capacity_hours_per_week")
+  currentLoadScore          Float?                @map("current_load_score")
+  agentParticipationEnabled Boolean               @default(true) @map("agent_participation_enabled")
+  shareContextWithCommunity Boolean               @default(false) @map("share_context_with_community")
+  shareWorkloadSignals      Boolean               @default(false) @map("share_workload_signals")
+  lastRoleMappedAt          DateTime?             @map("last_role_mapped_at")
+  roleMappingConfidence     Float?                @map("role_mapping_confidence")
+  joinedAt                  DateTime              @default(now()) @map("joined_at")
+  updatedAt                 DateTime              @updatedAt @map("updated_at")
+
+  @@unique([communityId, ownerId])
+  @@index([ownerId, status, showOnProfile])
+  @@index([communityId, status])
+  @@map("community_members")
+}
+
+model CommunityInvite {
+  id             String                @id @default(cuid())
+  communityId    String                @map("community_id")
+  community      Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  inviterOwnerId String                @map("inviter_owner_id")
+  inviterOwner   Owner                 @relation("CommunityInviteInviter", fields: [inviterOwnerId], references: [id], onDelete: Cascade)
+  inviteeOwnerId String?               @map("invitee_owner_id")
+  inviteeOwner   Owner?                @relation("CommunityInviteInvitee", fields: [inviteeOwnerId], references: [id], onDelete: Cascade)
+  inviteeEmail   String?               @map("invitee_email")
+  tokenHash      String                @unique @map("token_hash")
+  status         CommunityInviteStatus @default(PENDING)
+  expiresAt      DateTime              @map("expires_at")
+  acceptedAt     DateTime?             @map("accepted_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  handshake CommunityInviteHandshake?
+
+  @@index([communityId, status])
+  @@index([inviteeOwnerId, status])
+  @@index([inviteeEmail, status])
+  @@index([expiresAt])
+  @@map("community_invites")
+}
+
+model CommunityInviteHandshake {
+  id                        String                   @id @default(cuid())
+  inviteId                  String                   @unique @map("invite_id")
+  invite                    CommunityInvite          @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  communityId               String                   @map("community_id")
+  community                 Community                @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  inviteeOwnerId            String                   @map("invitee_owner_id")
+  inviteeAgentId            String?                  @map("invitee_agent_id")
+  ownerAgentId              String?                  @map("owner_agent_id")
+  status                    CommunityHandshakeStatus @default(PENDING)
+  recommendedRole           CommunityMemberRole?     @map("recommended_role")
+  recommendedTitle          String?                  @map("recommended_title")
+  recommendedSpecialization String?                  @map("recommended_specialization")
+  recommendedSkillTags      String[]                 @default([]) @map("recommended_skill_tags")
+  confidence                Float?
+  candidateSummary          String?                  @map("candidate_summary") @db.Text
+  ownerAgentSummary         String?                  @map("owner_agent_summary") @db.Text
+  judgeSummary              String?                  @map("judge_summary") @db.Text
+  failureReason             String?                  @map("failure_reason") @db.Text
+  startedAt                 DateTime?                @map("started_at")
+  completedAt               DateTime?                @map("completed_at")
+  expiresAt                 DateTime                 @map("expires_at")
+  createdAt                 DateTime                 @default(now()) @map("created_at")
+  updatedAt                 DateTime                 @updatedAt @map("updated_at")
+
+  @@index([communityId, status])
+  @@index([inviteeOwnerId, status])
+  @@index([expiresAt])
+  @@map("community_invite_handshakes")
+}
+
+model CommunityChannel {
+  id              String    @id @default(cuid())
+  communityId     String    @map("community_id")
+  community       Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  slug            String
+  name            String
+  description     String?   @db.Text
+  knowledgeFilter Json?     @map("knowledge_filter")
+  semanticQuery   String?   @map("semantic_query") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([communityId, slug])
+  @@index([communityId])
+  @@map("community_channels")
+}
+
+model CommunityKnowledgeSource {
+  id                   String                         @id @default(cuid())
+  communityId          String                         @map("community_id")
+  community            Community                      @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  type                 CommunityKnowledgeSourceType
+  name                 String
+  config               Json?
+  status               CommunityKnowledgeSourceStatus @default(ACTIVE)
+  syncCursor           String?                        @map("sync_cursor")
+  lastSyncedAt         DateTime?                      @map("last_synced_at")
+  lastSuccessfulSyncAt DateTime?                      @map("last_successful_sync_at")
+  lastError            String?                        @map("last_error") @db.Text
+  createdByOwnerId     String?                        @map("created_by_owner_id")
+  createdAt            DateTime                       @default(now()) @map("created_at")
+  updatedAt            DateTime                       @updatedAt @map("updated_at")
+
+  documents CommunityKnowledgeDocument[]
+
+  @@index([communityId, type, status])
+  @@map("community_knowledge_sources")
+}
+
+model CommunityKnowledgeDocument {
+  id               String                           @id @default(cuid())
+  communityId      String                           @map("community_id")
+  community        Community                        @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  sourceId         String                           @map("source_id")
+  source           CommunityKnowledgeSource         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalId       String?                          @map("external_id")
+  title            String
+  url              String?
+  sourceHash       String                           @map("source_hash")
+  distilledHash    String?                          @map("distilled_hash")
+  distilledContent String?                          @map("distilled_content") @db.Text
+  summary          String?                          @db.Text
+  tags             String[]                         @default([])
+  privacyLevel     CommunityKnowledgePrivacy        @default(COMMUNITY) @map("privacy_level")
+  status           CommunityKnowledgeDocumentStatus @default(ACTIVE)
+  staleAfter       DateTime?                        @map("stale_after")
+  supersededAt     DateTime?                        @map("superseded_at")
+  metadata         Json?
+  createdAt        DateTime                         @default(now()) @map("created_at")
+  updatedAt        DateTime                         @updatedAt @map("updated_at")
+
+  chunks CommunityKnowledgeChunk[]
+
+  @@unique([sourceId, externalId])
+  @@index([communityId, status, privacyLevel])
+  @@index([communityId, sourceHash])
+  @@map("community_knowledge_documents")
+}
+
+model CommunityKnowledgeChunk {
+  id           String                       @id @default(cuid())
+  communityId  String                       @map("community_id")
+  community    Community                    @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  documentId   String                       @map("document_id")
+  document     CommunityKnowledgeDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content      String                       @db.Text
+  embedding    Unsupported("vector(1536)")?
+  tokenCount   Int                          @default(0) @map("token_count")
+  tags         String[]                     @default([])
+  privacyLevel CommunityKnowledgePrivacy    @default(COMMUNITY) @map("privacy_level")
+  metadata     Json?
+  createdAt    DateTime                     @default(now()) @map("created_at")
+
+  @@index([communityId, privacyLevel])
+  @@index([documentId])
+  @@map("community_knowledge_chunks")
+}
+
+model CommunityStrategySession {
+  id                    String                         @id @default(cuid())
+  communityId           String                         @map("community_id")
+  community             Community                      @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  status                CommunityStrategySessionStatus @default(SCHEDULED)
+  scheduledFor          DateTime                       @map("scheduled_for")
+  startedAt             DateTime?                      @map("started_at")
+  completedAt           DateTime?                      @map("completed_at")
+  maxRounds             Int                            @default(2) @map("max_rounds")
+  judgeIterationLimit   Int                            @default(3) @map("judge_iteration_limit")
+  tokenLimit            Int                            @map("token_limit")
+  tokensUsed            Int                            @default(0) @map("tokens_used")
+  costUsd               Float                          @default(0) @map("cost_usd")
+  summary               String?                        @db.Text
+  judgeVerdict          Json?                          @map("judge_verdict")
+  partnershipCandidates Json?                          @map("partnership_candidates")
+  failureReason         String?                        @map("failure_reason") @db.Text
+  createdAt             DateTime                       @default(now()) @map("created_at")
+  updatedAt             DateTime                       @updatedAt @map("updated_at")
+
+  turns           CommunityStrategyTurn[]
+  actionProposals CommunityActionProposal[]
+
+  @@index([communityId, status, scheduledFor])
+  @@map("community_strategy_sessions")
+}
+
+model CommunityStrategyTurn {
+  id           String                    @id @default(cuid())
+  sessionId    String                    @map("session_id")
+  session      CommunityStrategySession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  communityId  String                    @map("community_id")
+  community    Community                 @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  agentId      String?                   @map("agent_id")
+  memberId     String?                   @map("member_id")
+  role         CommunityStrategyTurnRole
+  round        Int
+  inputHash    String?                   @map("input_hash")
+  output       Json
+  tokensInput  Int                       @default(0) @map("tokens_input")
+  tokensOutput Int                       @default(0) @map("tokens_output")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+
+  @@index([sessionId, round, role])
+  @@map("community_strategy_turns")
+}
+
+model CommunityActionProposal {
+  id               String                        @id @default(cuid())
+  communityId      String                        @map("community_id")
+  community        Community                     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  sessionId        String?                       @map("session_id")
+  session          CommunityStrategySession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  type             CommunityActionProposalType
+  status           CommunityActionProposalStatus @default(PENDING)
+  title            String
+  summary          String                        @db.Text
+  evidenceIds      String[]                      @default([]) @map("evidence_ids")
+  payload          Json
+  judgeConfidence  Float?                        @map("judge_confidence")
+  requiresRole     CommunityMemberRole           @default(ADMIN) @map("requires_role")
+  decidedByOwnerId String?                       @map("decided_by_owner_id")
+  decidedAt        DateTime?                     @map("decided_at")
+  createdAt        DateTime                      @default(now()) @map("created_at")
+
+  @@index([communityId, status, type])
+  @@map("community_action_proposals")
+}
+
+enum CommunityVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum CommunityProfileVisibility {
+  VISIBLE
+  HIDDEN
+}
+
+enum CommunityStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CommunityMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum CommunityMemberStatus {
+  ACTIVE
+  REMOVED
+  BANNED
+}
+
+enum CommunityInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum CommunityHandshakeStatus {
+  PENDING
+  RUNNING
+  APPROVED
+  REJECTED
+  NEEDS_HUMAN_REVIEW
+  WAITING_OWNER_AGENT
+  FAILED
+  EXPIRED
+}
+
+enum CommunityKnowledgeSourceType {
+  MANUAL
+  GITHUB
+  NOTION
+  MEMBER_CONTEXT
+  CHANNEL_SUMMARY
+  STRATEGY_OUTPUT
+}
+
+enum CommunityKnowledgeSourceStatus {
+  ACTIVE
+  PAUSED
+  DEGRADED
+  DISABLED
+}
+
+enum CommunityKnowledgePrivacy {
+  PUBLIC
+  COMMUNITY
+  ADMINS
+  OWNER_ONLY
+}
+
+enum CommunityKnowledgeDocumentStatus {
+  ACTIVE
+  SUPERSEDED
+  DELETED
+  REJECTED
+}
+
+enum CommunityStrategySessionStatus {
+  SCHEDULED
+  RUNNING
+  PARTIAL
+  COMPLETED
+  SKIPPED_BUDGET
+  FAILED
+  CANCELLED
+}
+
+enum CommunityStrategyTurnRole {
+  PARTICIPANT
+  JUDGE
+  CONNECTOR
+  SYSTEM
+}
+
+enum CommunityActionProposalType {
+  ROLE_CHANGE
+  WORKLOAD_REBALANCE
+  PARTNERSHIP_OUTREACH
+  KNOWLEDGE_GAP
+  CONNECTOR_CHANGE
+}
+
+enum CommunityActionProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  APPLIED
+  EXPIRED
+}
+
+enum CommunityCategory {
+  INVESTMENTS
+  SCIENCE
+  TECHNOLOGY
+}
+
+enum CommunitySpecialization {
+  INVESTOR_HUB
+  ANGEL_HUB
+  BIOLOGISTS
+  RESEARCHERS
+  SCIENTISTS
+  SPACE_RESEARCH
+  AI_DEVELOPMENT
+  SOLO_FOUNDERS
+}
+
 model Report {
   id         String   @id @default(cuid())
   chatId     String   @map("chat_id")
@@ -498,16 +910,19 @@ model InboxEvent {
 // Append-only analytics lifecycle ledger.
 // Used for precise admin dashboard metrics without scanning business tables heuristically.
 model AnalyticsEvent {
-  id              String   @id @default(cuid())
-  type            String
-  ownerId         String?  @map("owner_id")
-  agentId         String?  @map("agent_id")
-  matchId         String?  @map("match_id")
-  beaconId        String?  @map("beacon_id")
-  chatId          String?  @map("chat_id")
-  adviceSessionId String?  @map("advice_session_id")
-  metadata        Json?
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                String   @id @default(cuid())
+  type              String
+  ownerId           String?  @map("owner_id")
+  agentId           String?  @map("agent_id")
+  matchId           String?  @map("match_id")
+  beaconId          String?  @map("beacon_id")
+  chatId            String?  @map("chat_id")
+  adviceSessionId   String?  @map("advice_session_id")
+  communityId       String?  @map("community_id")
+  strategySessionId String?  @map("strategy_session_id")
+  knowledgeSourceId String?  @map("knowledge_source_id")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([type, createdAt])
   @@index([ownerId, createdAt])
@@ -516,27 +931,33 @@ model AnalyticsEvent {
   @@index([beaconId, createdAt])
   @@index([chatId, createdAt])
   @@index([adviceSessionId, createdAt])
+  @@index([communityId, createdAt])
+  @@index([strategySessionId, createdAt])
+  @@index([knowledgeSourceId, createdAt])
   @@map("analytics_events")
 }
 
 // Precise compute ledger for production and demo cost tracking.
 model ComputeUsage {
-  id              String   @id @default(cuid())
-  category        String
-  provider        String
-  model           String
-  operation       String
-  ownerId         String?  @map("owner_id")
-  agentId         String?  @map("agent_id")
-  matchId         String?  @map("match_id")
-  beaconId        String?  @map("beacon_id")
-  chatId          String?  @map("chat_id")
-  adviceSessionId String?  @map("advice_session_id")
-  tokensInput     Int      @default(0) @map("tokens_input")
-  tokensOutput    Int      @default(0) @map("tokens_output")
-  costUsd         Float    @default(0) @map("cost_usd")
-  metadata        Json?
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                String   @id @default(cuid())
+  category          String
+  provider          String
+  model             String
+  operation         String
+  ownerId           String?  @map("owner_id")
+  agentId           String?  @map("agent_id")
+  matchId           String?  @map("match_id")
+  beaconId          String?  @map("beacon_id")
+  chatId            String?  @map("chat_id")
+  adviceSessionId   String?  @map("advice_session_id")
+  communityId       String?  @map("community_id")
+  strategySessionId String?  @map("strategy_session_id")
+  knowledgeSourceId String?  @map("knowledge_source_id")
+  tokensInput       Int      @default(0) @map("tokens_input")
+  tokensOutput      Int      @default(0) @map("tokens_output")
+  costUsd           Float    @default(0) @map("cost_usd")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([category, createdAt])
   @@index([operation, createdAt])
@@ -546,5 +967,8 @@ model ComputeUsage {
   @@index([beaconId, createdAt])
   @@index([chatId, createdAt])
   @@index([adviceSessionId, createdAt])
+  @@index([communityId, createdAt])
+  @@index([strategySessionId, createdAt])
+  @@index([knowledgeSourceId, createdAt])
   @@map("compute_usage")
 }

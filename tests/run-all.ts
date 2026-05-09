@@ -8,6 +8,8 @@ const tests = [
   "tests/consent.test.ts",
   "tests/match-confirmation.test.ts",
   "tests/model-advice.test.ts",
+  "tests/community-validation.test.ts",
+  "tests/contextual-hubs.test.ts",
   "tests/monitoring.test.ts",
   "tests/networking-goal.test.ts",
   "tests/privacy-sync.test.ts",

@@ -99,3 +99,29 @@ export async function sendPasswordChangedEmail(email: string) {
     `)
   );
 }
+
+/* ── 3. Community invite ── */
+
+export async function sendCommunityInviteEmail(
+  email: string,
+  communityName: string,
+  inviterName: string | null,
+  inviteUrl: string
+) {
+  const inviter = inviterName ? escapeHtml(inviterName) : "A Gennety member";
+
+  return sendEmail(
+    email,
+    `Invitation to join ${communityName} — Gennety`,
+    emailLayout(`
+      <h2 style="font-size: 20px; color: #111; margin-bottom: 8px;">Community invitation</h2>
+      <p style="color: #555; line-height: 1.6; margin-bottom: 16px;">
+        ${inviter} invited you to join <strong>${escapeHtml(communityName)}</strong> on Gennety.
+      </p>
+      <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
+        This invitation is personal and expires in 7 days.
+      </p>
+      ${ctaButton("Accept invitation", inviteUrl)}
+    `)
+  );
+}

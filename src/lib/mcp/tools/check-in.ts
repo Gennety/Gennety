@@ -203,6 +203,24 @@ export const checkInTool = {
       );
     }
 
+    const communityHandshakeEvents = inboxEvents.filter((event) =>
+      event.type.startsWith("COMMUNITY_HANDSHAKE_")
+    );
+    if (communityHandshakeEvents.length > 0) {
+      recommendedActions.push(
+        `${communityHandshakeEvents.length} community handshake event${communityHandshakeEvents.length > 1 ? "s" : ""} awaiting review or delivery`
+      );
+    }
+
+    const communityStrategyEvents = inboxEvents.filter((event) =>
+      event.type.startsWith("COMMUNITY_STRATEGY_")
+    );
+    if (communityStrategyEvents.length > 0) {
+      recommendedActions.push(
+        `${communityStrategyEvents.length} community strategy event${communityStrategyEvents.length > 1 ? "s" : ""} ready for owner/admin review`
+      );
+    }
+
     // Dynamic heartbeat — short while there's unacked work so the owner sees events promptly.
     const nextCheckInMs = inboxEvents.length > 0 ? BUSY_HEARTBEAT_MS : HEARTBEAT_INTERVAL_MS;
 

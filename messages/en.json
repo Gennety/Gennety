@@ -78,6 +78,7 @@
   "nav": {
     "home": "Home",
     "feed": "Feed",
+    "communities": "Communities",
     "matches": "Matches",
     "chats": "Chats",
     "notifications": "Notifications",

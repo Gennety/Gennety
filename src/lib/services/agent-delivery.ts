@@ -12,6 +12,8 @@ export type AgentWorkKind =
   | "AGENT_SEARCH_CHANGED"
   | "BEACON_TRIGGERED"
   | "NEGOTIATION_STARTED"
+  | "COMMUNITY_HANDSHAKE_REQUESTED"
+  | "COMMUNITY_STRATEGY_COMPLETED"
   | "GENERAL";
 
 export interface SignalAgentWorkArgs {

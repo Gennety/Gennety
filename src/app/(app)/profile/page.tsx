@@ -1,8 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
+import {
+  COMMUNITY_CATEGORY_LABELS,
+  COMMUNITY_SPECIALIZATION_LABELS,
+} from "@/types/community";
 import {
   getMatteDotClass,
   getMattePillClass,
@@ -52,6 +57,20 @@ interface ProfileData {
     isActive: boolean;
     lastActiveAt: string | null;
   };
+  communities: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    visibility: "PUBLIC" | "PRIVATE";
+    category: keyof typeof COMMUNITY_CATEGORY_LABELS | null;
+    specialization: keyof typeof COMMUNITY_SPECIALIZATION_LABELS | null;
+    memberCount: number;
+    viewer: {
+      canManage: boolean;
+      showOnProfile: boolean;
+    };
+  }>;
 }
 
 export default function ProfilePage() {
@@ -275,6 +294,8 @@ export default function ProfilePage() {
         </>
       )}
 
+      <CommunitiesSection communities={profile.communities ?? []} />
+
       {/* Reputation & Stats */}
       <Surface className="mb-6 px-5 py-5">
         <h2 className="mb-4 text-xs font-medium uppercase tracking-wider text-neutral-500">
@@ -317,6 +338,57 @@ export default function ProfilePage() {
 }
 
 /* ── Sub-components ── */
+
+function CommunitiesSection({ communities }: { communities: ProfileData["communities"] }) {
+  return (
+    <Surface className="mb-6 px-5 py-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-xs font-medium uppercase tracking-wider text-neutral-500">
+          Communities
+        </h2>
+        <Link href="/communities/new" className="text-xs font-medium text-neutral-300 hover:text-white">
+          Create
+        </Link>
+      </div>
+
+      {communities.length === 0 ? (
+        <div className="rounded-2xl bg-white/[0.025] px-4 py-4 text-sm text-neutral-500 ring-1 ring-inset ring-white/[0.05]">
+          No visible communities yet.
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {communities.map((community) => (
+            <Link
+              key={community.id}
+              href={`/communities/${community.slug}`}
+              className="rounded-2xl bg-white/[0.025] p-4 ring-1 ring-inset ring-white/[0.06] transition-colors hover:bg-white/[0.04] hover:ring-white/[0.1]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">{community.name}</p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {community.specialization
+                      ? COMMUNITY_SPECIALIZATION_LABELS[community.specialization]
+                      : community.category
+                      ? COMMUNITY_CATEGORY_LABELS[community.category]
+                      : "Custom community"}
+                  </p>
+                </div>
+                <span className={getMattePillClass(community.visibility === "PUBLIC" ? "neutral" : "muted", "shrink-0 text-xs")}>
+                  {community.visibility === "PUBLIC" ? "Open link" : "Invite only"}
+                </span>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs text-neutral-600">
+                <span>{community.memberCount} members</span>
+                <span>{community.visibility === "PUBLIC" ? "Anyone can join" : "Direct invitation required"}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Surface>
+  );
+}
 
 function Section({
   title,

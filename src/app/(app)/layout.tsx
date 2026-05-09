@@ -78,6 +78,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <FeedIcon />
                 {t("nav.feed")}
               </SidebarLink>
+              <SidebarLink href="/communities" active={pathname === "/communities" || pathname.startsWith("/communities/")}>
+                <CommunityIcon />
+                {t("nav.communities")}
+              </SidebarLink>
               <SidebarLink href="/matches" active={pathname === "/matches"}>
                 <MatchesIcon />
                 {t("nav.matches")}
@@ -128,6 +132,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </MobileNavLink>
           <MobileNavLink href="/activity" active={pathname === "/activity"}>
             <FeedIcon />
+          </MobileNavLink>
+          <MobileNavLink href="/communities" active={pathname === "/communities" || pathname.startsWith("/communities/")}>
+            <CommunityIcon />
           </MobileNavLink>
           <MobileNavLink href="/matches" active={pathname === "/matches"}>
             <MatchesIcon />
@@ -444,6 +451,16 @@ function MatchesIcon() {
       <circle cx="7" cy="8" r="3" />
       <circle cx="13" cy="8" r="3" />
       <path d="M2 17c0-2.5 2-4 5-4 .7 0 1.4.1 2 .3M11 13.3c.6-.2 1.3-.3 2-.3 3 0 5 1.5 5 4" />
+    </svg>
+  );
+}
+
+function CommunityIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8.5a3 3 0 106 0 3 3 0 00-6 0z" />
+      <path d="M2.5 16.5c.9-2.4 3.1-3.7 6.5-3.7s5.6 1.3 6.5 3.7" />
+      <path d="M14.2 5.2a2.4 2.4 0 11.9 4.6M17.2 16.2c-.4-1.4-1.3-2.4-2.8-3" />
     </svg>
   );
 }

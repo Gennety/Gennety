@@ -18,7 +18,7 @@ const publicFilesExact = ["/skill.md", "/llms.txt", "/INDEX.md", "/AGENTS.md"];
 const publicFilesPrefixes = ["/skills/", "/tools/", "/.well-known/"];
 
 // Routes that belong on the app subdomain
-const appPrefixes = ["/home", "/matches", "/profile", "/activity", "/notify", "/chat", "/onboarding", "/settings"];
+const appPrefixes = ["/home", "/matches", "/profile", "/u", "/activity", "/notify", "/chat", "/communities", "/onboarding", "/settings"];
 const appExact = ["/login", "/forgot-password", "/reset-password"];
 
 // Public API routes — no auth required
@@ -34,6 +34,7 @@ const publicApiPrefixes = [
   "/api/a2a",
   "/api/admin/analytics",
   "/api/agent",
+  "/api/communities/agent-create",
   "/api/cron",
   "/api/stats",
   "/api/locale",
