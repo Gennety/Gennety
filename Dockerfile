@@ -32,6 +32,9 @@ ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_LANDING_URL=$NEXT_PUBLIC_LANDING_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+# The production droplet is small; allow Next/TypeScript to use swap during image builds.
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 RUN npx prisma generate
 RUN npm run build
