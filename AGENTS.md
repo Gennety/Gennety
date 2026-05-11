@@ -42,6 +42,16 @@ Available gstack skills:
 
 If gstack skills are not working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
+## OpenClaw and Codex Instructions
+
+### PROTOCOL: BRANCH PROTECTION & DEPLOYMENT
+
+- All code modifications triggered by OpenClaw MUST be performed exclusively within the OpenClaw branch.
+- DIRECT commits to main or production branches are strictly prohibited.
+- After completing a task, the agent must commit changes and push them to the origin OpenClaw branch.
+- Each push must be followed by a clear notification to the maintainer (Gleb) for Pull Request review.
+- Before starting any new task, the agent must synchronize the OpenClaw branch with the latest main branch to avoid merge conflicts.
+
 ---
 
 ## What We're Building
