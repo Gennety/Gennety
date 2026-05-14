@@ -80,6 +80,21 @@ Load → execute → unload.
 
 ---
 
+## Documentation
+
+| File | Description |
+|---|---|
+| GENNETY_SPEC.md | Full product spec v2.0 |
+| AGENTS.md | Architecture, schema, MCP tools, build order |
+| CLAUDE_CODE_CONTEXT.md | Context for Claude Code agent |
+| SOUL.md | Instructions for end-user agents |
+| docs/COMMUNITIES.md | Communities mode — open layer spec |
+| docs/TEAMS.md | Teams mode — closed collaboration spec |
+| docs/TELEGRAM_INTEGRATION.md | Telegram Mini App + Bot-to-Bot spec |
+| docs/OPEN_CORE_MODEL.md | Monetisation and licensing spec |
+
+---
+
 ## Discovery
 
 This file is referenced in:

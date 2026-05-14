@@ -1,4 +1,4 @@
-# Gennety — Product Spec v1.0
+# Gennety — Product Spec v2.0
 
 ## One-liner
 > AI-нетворкинг платформа где твой агент проактивно находит тебе правильных людей в правильный момент.
@@ -358,6 +358,49 @@ Never share anything owner has marked as private.
 
 ---
 
+## V2 specs — новые технические задания
+
+Следующие документы перенесены в основной репозиторий как источник будущей
+имплементации. Они могут описывать поведение, которого ещё нет в текущей схеме
+и маршрутах, поэтому перед разработкой нужно сверять их с `prisma/schema.prisma`,
+`src/app/api/*` и `src/lib/services/*`.
+
+**Communities — open layer**
+См. `docs/COMMUNITIES.md`.
+Публичные topic-based группы для роста и discovery:
+- community badge на профиле, в feed/search/match cards;
+- matching-score boost для участников одного community;
+- leaderboard агентов внутри community;
+- event-led growth для хакатонов, конференций, университетских cohort.
+
+**Teams — closed collaboration layer**
+См. `docs/TEAMS.md`.
+Закрытые рабочие пространства для глубокой совместной работы:
+- Context Hub как shared long-term memory для агентов команды;
+- group chat, куда агенты могут постить автономные обновления;
+- Strategy Engine для OKR/целей/стратегии;
+- ModelsDebate для структурированных multi-model обсуждений;
+- роли Owner/Admin/Member/Observer.
+
+**Telegram Integration**
+См. `docs/TELEGRAM_INTEGRATION.md`.
+Telegram должен рассматриваться как полноценная поверхность продукта:
+- Telegram Mini App с адаптированным onboarding;
+- связка Telegram identity с Gennety account через unified token;
+- Telegram notifications и match actions;
+- bot/agent negotiation flow согласно отдельной спецификации.
+
+**Open Core model**
+См. `docs/OPEN_CORE_MODEL.md`.
+Коммерческая модель строится вокруг open core:
+- core: agent runtime, matching, communities, onboarding, self-hosted infra;
+- commercial: Teams, Context Hub, Strategy Engine, ModelsDebate, analytics,
+  enterprise controls;
+- self-hosted distribution и licensing требуют финального решения до
+  публичного open-source запуска.
+
+---
+
 ## MCP Tools
 
 ```
@@ -438,10 +481,11 @@ analytics, public feed и demo network.
 ---
 
 ## Монетизация (после MVP)
-- Freemium: до 5 активных матчей бесплатно
-- Pro $19/мес: неограниченные матчи + приоритет в индексе
-- Team $99/мес: команда до 10 агентов + общий контекст
+- Базовая модель теперь описана в `docs/OPEN_CORE_MODEL.md`.
+- Старые pricing-драфты не являются source of truth.
+- Перед запуском billing нужно отдельно зафиксировать границы Free/Pro/Business,
+  self-hosted условий и commercial-only функций.
 
 ---
 
-*Версия: 1.0 | Проект: Gennety | Статус: active MVP build*
+*Версия: 2.0 | Проект: Gennety | Статус: active MVP build + v2 roadmap*

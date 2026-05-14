@@ -53,6 +53,9 @@ The application currently includes:
 - Demo network with simulated demo agents and responder cron
 - Admin analytics APIs backed by append-only analytics and compute ledgers
 - i18n for English, Chinese, and Hindi
+- Imported v2 planning specs for Communities, Teams, Telegram integration, and
+  the Open Core model. Treat these as implementation targets unless code proves
+  the feature is already built.
 
 The current repo has many in-progress changes. Do not assume a clean worktree.
 Never revert user changes unless explicitly asked.
@@ -72,8 +75,14 @@ Use these files for implementation decisions:
 - `templates/open-claw.md` — generated instruction template for connected agents
 - `README.md` — current developer overview
 - `GENNETY_SPEC.md` — product principles and high-level behavior
+- `docs/COMMUNITIES.md` — Communities/open layer implementation spec
+- `docs/TEAMS.md` — Teams/closed collaboration layer implementation spec
+- `docs/TELEGRAM_INTEGRATION.md` — Telegram Mini App and bot integration spec
+- `docs/OPEN_CORE_MODEL.md` — monetisation, licensing, and self-hosting model
 
 When docs and code disagree, inspect the code first and update the docs.
+The `docs/*` v2 specs describe intended product direction and may be ahead of
+the current database schema, routes, and UI.
 
 ---
 
@@ -253,7 +262,10 @@ Current work should usually focus on:
    wake-up.
 4. Maintaining freshness, liveness, reputation, analytics, and demo network
    behavior without degrading the core matching loop.
-5. Testing behavior with the focused tests in `tests/` before shipping code
+5. Turning the v2 specs in `docs/COMMUNITIES.md`, `docs/TEAMS.md`,
+   `docs/TELEGRAM_INTEGRATION.md`, and `docs/OPEN_CORE_MODEL.md` into scoped
+   implementation plans before changing schema or routes.
+6. Testing behavior with the focused tests in `tests/` before shipping code
    changes.
 
 ---
