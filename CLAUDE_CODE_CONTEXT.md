@@ -102,6 +102,12 @@ the current database schema, routes, and UI.
   production target; Vercel-compatible config still exists but is not the
   production runbook.
 
+Planned Telegram work is specified separately in
+`docs/TELEGRAM_INTEGRATION.md`. Treat it as a v2 integration target that may
+require new dependencies such as `grammy`, `@twa-dev/sdk`, Telegram `initData`
+verification, Mini App surfaces, and bot notification flows. Do not change the
+current production stack description until the code actually adopts those parts.
+
 ---
 
 ## Real MCP tools
