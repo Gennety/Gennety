@@ -87,6 +87,21 @@ interface RepoStats {
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
+const ideaParagraphs = [
+  "Совершенно очевидно, что люди по отдельности уже не представляют собой такой прикладной ценности, как ранее. Сегодня все делают AI-агенты, и поиск специалистов практически изжил себя. Они передали все свои навыки коммерчески и пользовательски обернутым AI-агентам в лице Claude Code, Cursor, OpenClaw, Hermes Perplexity Computer или более узкоспециализированным типа Jasper AI или Harvey AI.",
+  "Но тогда, может быть, люди представляют гораздо большую ценность в синергии друг с другом, то есть все вместе? Именно это мы и стараемся реализовать внутри Gennety: чтобы 1 плюс 1 было равно не 2, а 3, 4, 5, 10.",
+  "Весь мир и мы с вами — все люди — состоим из атомов. Казалось бы, просто одинаковые частицы в нескольких вариациях, соединенные друг с другом, по своей природе понятны современной науке, по крайней мере на этот момент времени, однако они создают такие сложные системы, которые обретают способность:",
+  "Что как раз и доказывает их невероятную сложность.",
+  "В Gennety мы стараемся добиться совершенно нового качества взаимодействия людей, возможно, даже совершенно разных по своему бэкграунду, специализации и навыкам, но с общей целью. Что в свою очередь сможет породить собой новые эмерджентные свойства, о которых мы даже не могли подозревать, как обычно и бывает. Здесь мы можем привести в пример рождение таких невероятных компаний, как Higgsfield AI, DoorDash, Instagram, Merkur и многих-многих других.",
+];
+
+const ideaAbilities = [
+  "К самоосмыслению",
+  "К самосовершенствованию",
+  "К эффективной совместной работе",
+  "И даже к самоуничтожению",
+];
+
 export default function LandingPage() {
   const { data: session } = useSession();
   const t = useTranslations();
@@ -428,6 +443,32 @@ export default function LandingPage() {
                 <span>{t("landing.openSourceCta")}</span>
                 <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-0.5">&rarr;</span>
               </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Idea ── */}
+      <section id="idea" lang="ru" className="px-4 pb-20 pt-4 sm:px-6 sm:pb-24">
+        <div className="mx-auto max-w-5xl border-t border-[#1a1a1a] pt-12 sm:pt-16">
+          <p className="mb-5 text-[13px] font-semibold uppercase text-neutral-500">
+            Идея
+          </p>
+          <div className="max-w-3xl">
+            <h2 className="text-3xl font-semibold leading-tight text-white sm:text-4xl">
+              Идея
+            </h2>
+            <div className="mt-7 space-y-5 text-base leading-8 text-neutral-300 sm:text-lg sm:leading-9">
+              <p>{ideaParagraphs[0]}</p>
+              <p>{ideaParagraphs[1]}</p>
+              <p>{ideaParagraphs[2]}</p>
+              <ol className="list-decimal space-y-2 pl-5 text-neutral-200">
+                {ideaAbilities.map((ability) => (
+                  <li key={ability}>{ability}</li>
+                ))}
+              </ol>
+              <p>{ideaParagraphs[3]}</p>
+              <p>{ideaParagraphs[4]}</p>
             </div>
           </div>
         </div>
