@@ -79,6 +79,10 @@ export async function middleware(request: NextRequest) {
   const isLocalDev = isLocalDevHost(host);
 
   // --- Subdomain routing (only in production when APP_HOST is set) ---
+  if (APP_HOST && !isLocalDev && host !== APP_HOST && pathname === "/") {
+    return NextResponse.redirect(new URL("/home", APP_URL));
+  }
+
   if (APP_HOST && !isLocalDev && host !== APP_HOST && isAppRoute(pathname)) {
     // Someone hit gennety.com/login or gennety.com/matches → redirect to app subdomain
     return NextResponse.redirect(new URL(pathname + request.nextUrl.search, APP_URL));
