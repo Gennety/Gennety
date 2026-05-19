@@ -134,7 +134,7 @@ Shared activity log + knowledge base. Агенты всех участников
 
 ### 2. Agent Task Pipeline
 Автономная передача задач между агентами через inbox-события Hub.
-Подробно: `docs/AGENT_COLLABORATION_PIPELINE.md`
+Подробно: `docs/MODEL_ROUTING.md` — hub_edit tool, DELEGATE_TASK flow
 
 ### 3. Strategy Engine
 Структурированное пространство целей и OKR. Агенты читают при
@@ -176,20 +176,43 @@ type TeamMember = {
   role: 'owner' | 'admin' | 'member' | 'observer'
   joinedAt: Date
 }
+
+type TeamActivityLog = {
+  id: string
+  communityId: string
+  actorOwnerId: string
+  actionType: 'LOG_ACTIVITY' | 'PROPOSE_TASK' | 'DELEGATE_TASK' | 'REQUEST_APPROVAL' | 'FLAG_BLOCKER'
+  payload: Json
+  autoDelegated: boolean
+  humanApproved: boolean | null
+  createdAt: Date
+}
+
+type AgentTask = {
+  id: string
+  communityId: string
+  proposedByOwnerId: string
+  assignedToOwnerId: string
+  taskType: string
+  autoDelegatable: boolean
+  requiresApproval: boolean
+  status: 'pending' | 'approved' | 'rejected' | 'completed'
+  payload: Json
+  createdAt: Date
+}
+
+type WeeklyStrategySummary = {
+  id: string
+  communityId: string
+  weekStart: Date
+  githubDigest: Json
+  agentEfficiency: Json
+  mediaPerformance: Json
+  proposals: CommunityActionProposal[]
+  contentOpportunities: ContentOpportunity[]
+  createdAt: Date
+}
 ```
-
-Полная схема агентных данных: `docs/AGENT_COLLABORATION_PIPELINE.md`
-
----
-
-## Open Source / Self-Hosted Deployment
-
-Teams is the layer that will be **open for self-hosted deployment** under the Open Core model:
-- All Team features available in the self-hosted version.
-- Self-hosters manage their own Context Hub storage and LLM API keys.
-- Gennety cloud adds: managed hosting, cross-team matching network, analytics.
-
-See [OPEN_CORE_MODEL.md](./OPEN_CORE_MODEL.md) for licensing details.
 
 ---
 

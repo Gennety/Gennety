@@ -1,84 +1,86 @@
 # Agent Collaboration Pipeline
 
+> Техническая спецификация системы автономной координации агентов внутри Team.
+
 Дата: 2026-05-19
 
-> Технический документ. Описывает архитектуру автономной передачи задач
-> между агентами OpenClaw внутри Team через Context Hub.
+---
+
+## 1. Обзор
+
+Пайплайн — это три взаимосвязанных слоя:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Layer 3: Weekly Strategy Session                       │
+│  (Judge Agent, GitHub + media + efficiency analysis)    │
+├─────────────────────────────────────────────────────────┤
+│  Layer 2: Event-Driven Task Delegation                  │
+│  (PROPOSE / DELEGATE / REQUEST_APPROVAL)                │
+├─────────────────────────────────────────────────────────┤
+│  Layer 1: Activity Logging                              │
+│  (structured logs → distillation → Hub)                 │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 1. Концепция
+## 2. Layer 1 — Activity Logging
 
-Team — это не просто группа людей. Это **команда агентов**, каждый из которых
-действует от лица своего пользователя. Агенты:
+Каждый агент OpenClaw логирует деятельность своего пользователя через
+MCP tool `log_activity`.
 
-1. **Логируют** деятельность пользователя в Context Hub
-2. **Читают** логи других участников
-3. **Сопоставляют** паттерны и строят общую картину
-4. **Передают задачи** друг другу — автономно или с одобрением человека
-
-Context Hub — это **общая оперативная память команды**. Не только база знаний,
-но и живой журнал событий, который агенты читают непрерывно.
-
----
-
-## 2. Activity Logging
-
-Каждое значимое действие пользователя → агент логирует в Hub.
-
-### Структура TeamActivityLog
+### Структура лога
 
 ```typescript
 interface TeamActivityLog {
-  id: string;
-  communityId: string;
-  actorOwnerId: string;          // кто сделал
-  agentId: string;               // какой агент залогировал
-  actionType: ActivityActionType;
-  summary: string;               // distilled summary (cheap model)
-  references: ActivityReference[]; // PR id, issue id, post url и т.д.
-  autoDelegated: boolean;        // было ли это авто-делегацией
-  humanApproved: boolean | null; // null = не требовалось
-  metadata: Record<string, unknown>;
-  createdAt: Date;
+  id: string
+  communityId: string
+  actorOwnerId: string           // кто сделал
+  actionType: ActivityActionType // что сделал
+  summary: string                // сгенерировано distillation-моделью
+  payload: Json                  // raw details (PR id, commit sha, etc.)
+  references: {
+    githubPrId?: number
+    githubCommitSha?: string
+    knowledgeDocumentId?: string
+    externalUrl?: string
+  }
+  autoDelegated: boolean
+  humanApproved: boolean | null
+  createdAt: Date
 }
 
 type ActivityActionType =
   | 'CODE_COMMITTED'
-  | 'PR_OPENED'
   | 'PR_MERGED'
   | 'PR_REVIEWED'
   | 'DEPLOYMENT_TRIGGERED'
   | 'DEPLOYMENT_COMPLETED'
-  | 'SOCIAL_POST_DRAFTED'
   | 'SOCIAL_POST_PUBLISHED'
+  | 'MEETING_HELD'
+  | 'DECISION_MADE'
   | 'BLOCKER_FLAGGED'
   | 'BLOCKER_RESOLVED'
+  | 'HUB_DOCUMENT_ADDED'
   | 'TASK_PROPOSED'
   | 'TASK_DELEGATED'
   | 'TASK_COMPLETED'
-  | 'APPROVAL_REQUESTED'
-  | 'APPROVAL_GRANTED'
-  | 'APPROVAL_DENIED'
-  | 'STRATEGY_SESSION_STARTED'
-  | 'STRATEGY_SESSION_COMPLETED'
-  | 'MANUAL_HUB_EDIT';           // ручное редактирование через chat
 ```
 
 ### Distillation при логировании
 
-Каждый лог проходит `distillDocument()` через `resolveModel('distillation')`
-(cheap model). Результат: `summary` + `tags` + `keyEntities`.
-Raw-текст из MEMORY.md **никогда** не попадает в лог.
+Каждый лог прогоняется через `resolveModel('distillation')` для генерации
+структурированного `summary`. Это дёшево и делается синхронно при записи.
 
 ---
 
-## 3. Event-Driven Task Delegation
+## 3. Layer 2 — Event-Driven Task Delegation
 
 ### Триггеры
 
-После каждого нового `TeamActivityLog` система рассылает событие
-подписчикам-агентам в той же команде.
+После каждого нового лога система публикует событие в очередь.
+Агент каждого участника команды подписан на события своей команды.
 
 ```typescript
 type HubEvent =
@@ -87,162 +89,99 @@ type HubEvent =
   | { type: 'BLOCKER_FLAGGED';        log: TeamActivityLog }
   | { type: 'DEPLOYMENT_EVENT';       log: TeamActivityLog }
   | { type: 'STRATEGY_SESSION_STARTED'; sessionId: string }
-  | { type: 'APPROVAL_REQUESTED';     taskId: string; targetOwnerId: string }
 ```
 
-### AgentTask
+### Обработка событий агентом
 
 ```typescript
-interface AgentTask {
-  id: string;
-  communityId: string;
-  proposedByOwnerId: string;
-  assignedToOwnerId: string;     // целевой участник
-  assignedToAgentId?: string;    // если делегируется напрямую агенту
-  title: string;
-  description: string;
-  taskCategory: TaskCategory;
-  autoDelegatable: boolean;      // можно ли без одобрения человека
-  requiresApproval: boolean;
-  status: 'PROPOSED' | 'DELEGATED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED';
-  sourceLogId?: string;          // какой лог породил задачу
-  dueAt?: Date;
-  createdAt: Date;
-  completedAt?: Date;
-}
+async function handleHubEvent(event: HubEvent, context: AgentContext) {
+  const relevantLogs = await readTeamContext(context.communityId, event)
+  const model = resolveModel('hub_edit_chat')  // quality-модель для анализа
 
-type TaskCategory =
-  | 'CODE_REVIEW'         // auto_delegatable: true
-  | 'DEPLOY'              // auto_delegatable: true (внутренний)
-  | 'SOCIAL_DRAFT'        // auto_delegatable: true (только драфт)
-  | 'SOCIAL_PUBLISH'      // auto_delegatable: false — нужно одобрение
-  | 'MERGE_TO_MAIN'       // auto_delegatable: false — нужно одобрение
-  | 'STRATEGY_PROPOSAL'   // auto_delegatable: false
-  | 'BLOCKER_ESCALATION'  // auto_delegatable: true
-  | 'NOTIFICATION';       // auto_delegatable: true
+  const decision = await callLLM({
+    ...model,
+    prompt: buildEventDecisionPrompt(event, relevantLogs, context)
+  })
+  // decision: 'no_action' | 'propose_task' | 'delegate_task' | 'request_approval'
+
+  if (decision.action === 'propose_task') {
+    await proposeTask(decision.task)
+  } else if (decision.action === 'delegate_task' && decision.task.autoDelegatable) {
+    await delegateTask(decision.task)  // без участия человека
+  } else if (decision.action === 'request_approval') {
+    await requestApproval(decision.task, context.ownerInboxId)
+  }
+}
 ```
 
 ### Правило Human in the Loop
 
-```
-if task.autoDelegatable:
-    agent → DELEGATE_TASK → выполняет напрямую → логирует результат
-else:
-    agent → REQUEST_APPROVAL → inbox пользователя
-    if approved:
-        agent → выполняет → логирует
-    if denied:
-        agent → логирует отказ, задача REJECTED
-```
+Автономная делегация (`DELEGATE_TASK`) возможна только если:
+- `AgentTask.autoDelegatable === true`
+- `AgentTask.requiresApproval === false`
+- задача не затрагивает внешние сервисы (публикации, финансы, мерж в main)
 
-### Пример полной цепочки
-
-```
-1. Dev-агент: CODE_COMMITTED (PR #42 opened)
-   → log в Hub
-
-2. Maintainer-агент видит LOG_ADDED (PR_OPENED)
-   → PROPOSE_TASK(CODE_REVIEW, autoDelegatable=true)
-   → Maintainer-агент: читает PR, оставляет ревью, пушит правки
-   → log: PR_REVIEWED, PR_MERGED
-
-3. DevOps-агент видит LOG_ADDED (PR_MERGED)
-   → DELEGATE_TASK(DEPLOY, autoDelegatable=true)
-   → запускает деплой pipeline
-   → log: DEPLOYMENT_COMPLETED (v1.4.2)
-
-4. SMM-агент видит LOG_ADDED (DEPLOYMENT_COMPLETED)
-   → DELEGATE_TASK(SOCIAL_DRAFT, autoDelegatable=true)
-   → составляет пост для X
-   → REQUEST_APPROVAL → inbox SMM-пользователя
-   → пользователь одобряет
-   → log: SOCIAL_POST_PUBLISHED
-```
+Во всех остальных случаях → `REQUEST_APPROVAL` в inbox пользователя.
 
 ---
 
-## 4. Weekly Strategy Session
+## 4. Layer 3 — Weekly Strategy Session
 
 ### Запуск
 
-Cron: каждый понедельник 09:00 UTC → `/api/cron/team-strategy-weekly`
-Либо вручную: OWNER/ADMIN через UI или команду OpenClaw.
+Cron-джоб `/api/cron/team-strategy-weekly` запускается каждый понедельник.
+Для каждой активной команды создаётся `WeeklyStrategySummary`.
 
-### Этапы
+### Участники сессии
 
-**1. Сбор данных** (Participant Agents, `resolveModel('strategy_participant')`)
+| Роль | Модель | Задача |
+|---|---|---|
+| Participant Agents | `resolveModel('strategy_participant')` | Анализ своего домена |
+| Judge Agent | `resolveModel('strategy_judge')` | Синтез и финализация |
 
-- GitHub-аналитика из Hub-логов:
-  - фичи, закрытые за неделю
-  - velocity PR (время open → merge)
-  - блокеры (открытые и закрытые)
-  - соотношение feature / bug / refactor
+### Что анализируется
 
-- Агентная эффективность из `AgentEfficiencySnapshot`:
-  - задач выполнено на агента
-  - % автономных делегаций
-  - среднее время реакции на триггер
-  - REQUEST_APPROVAL: % одобрений / отказов
+**GitHub-активность** (из Hub-логов + GitHub connector):
+- Реализованные фичи (PR merged с label `feature`)
+- Velocity: среднее время закрытия PR за неделю
+- Blocker rate: % задач с `BLOCKER_FLAGGED`
+- Соотношение feature / bug / refactor
 
-- Медиа-аналитика из `ContentOpportunity` + внешних API:
-  - посты опубликованы за неделю
-  - engagements по каждому посту
-  - какие фичи упомянуты
-  - виральные vs. незамеченные
+**Эффективность агентов**:
+- Количество выполненных задач на агента
+- `autoDelegated / total` ratio — насколько агент работает автономно
+- Скорость реакции на `LOG_ADDED` события
+- Количество `REQUEST_APPROVAL` vs. автономных действий
 
-**2. Синтез** (Judge Agent, `resolveModel('strategy_judge')`)
+**Медиа-перформанс** (через social API или stub):
+- Количество публикаций за неделю
+- Engagement по каждой публикации
+- Маппинг публикации → фича → реакция аудитории
+- Какие фичи получили органический отклик
 
-Judge Agent получает все данные → формирует:
-- `WeeklyStrategySummary` (Markdown, для команды)
-- `CommunityActionProposal[]` (рекомендации на одобрение)
-- `AgentEfficiencyReport` (по ролям)
-- `ContentOpportunity[]` (что стоит опубликовать на следующей неделе)
-
-**3. Доставка**
-
-- Summary публикуется в Group Chat команды
-- Proposals попадают в inbox OWNER/ADMIN для одобрения
-- Efficiency report доступен OWNER/ADMIN
-
-### Выходные типы
+### Выходные документы
 
 ```typescript
 interface WeeklyStrategySummary {
-  id: string;
-  communityId: string;
-  weekStart: Date;
-  weekEnd: Date;
-  githubSection: string;       // Markdown
-  agentSection: string;        // Markdown
-  mediaSection: string;        // Markdown
-  keyInsights: string[];       // топ-3 инсайта
-  risks: string[];             // риски на следующую неделю
-  createdAt: Date;
-}
-
-interface AgentEfficiencySnapshot {
-  id: string;
-  communityId: string;
-  ownerIdSubject: string;      // чей агент
-  weekStart: Date;
-  tasksCompleted: number;
-  tasksDelegatedAuto: number;
-  tasksRequiredApproval: number;
-  approvalsGranted: number;
-  approvalsDenied: number;
-  avgResponseMinutes: number;
-  blockersFlagged: number;
-  blockersResolved: number;
+  id: string
+  communityId: string
+  weekStart: Date
+  githubDigest: GitHubWeeklyDigest
+  agentEfficiency: AgentEfficiencyReport
+  mediaPerformance: MediaPerformanceReport | null  // null если API не подключён
+  proposals: CommunityActionProposal[]   // к одобрению OWNER/ADMIN
+  contentOpportunities: ContentOpportunity[]
+  createdAt: Date
 }
 
 interface ContentOpportunity {
-  id: string;
-  communityId: string;
-  triggerLogId: string;        // какой лог породил идею
-  suggestedPlatform: 'X' | 'LINKEDIN' | 'TELEGRAM' | 'OTHER';
-  draftContent?: string;       // если агент уже составил драфт
-  status: 'PROPOSED' | 'APPROVED' | 'PUBLISHED' | 'REJECTED';
-  createdAt: Date;
+  id: string
+  summaryId: string
+  feature: string        // о какой фиче писать
+  rationale: string      // почему сейчас хороший момент
+  draftPost?: string     // черновик поста (если enabled)
+  platform: 'x' | 'linkedin' | 'generic'
+  status: 'pending_approval' | 'approved' | 'rejected' | 'published'
 }
 ```
 
@@ -251,88 +190,40 @@ interface ContentOpportunity {
 ## 5. MCP Tools для OpenClaw
 
 ### `log_activity`
-
-```typescript
-interface LogActivityInput {
-  communityId: string;
-  actionType: ActivityActionType;
-  content: string;             // описание от агента
-  references?: ActivityReference[];
-}
-// → TeamActivityLog (distilled)
-```
+Агент логирует событие от имени пользователя → distillation → Hub.
 
 ### `read_team_context`
-
-```typescript
-interface ReadTeamContextInput {
-  communityId: string;
-  query: string;               // semantic search
-  filterActionTypes?: ActivityActionType[];
-  since?: Date;
-  limit?: number;              // default 10
-}
-// → TeamActivityLog[] (ranked by relevance)
-```
+Агент читает релевантные логи из Hub по смысловому запросу.
+Использует `resolveModel('hub_search_answer')` для RAG-ответа.
 
 ### `propose_task`
-
-```typescript
-interface ProposeTaskInput {
-  communityId: string;
-  assignedToOwnerId: string;
-  title: string;
-  description: string;
-  taskCategory: TaskCategory;
-  sourceLogId?: string;
-}
-// → AgentTask (status: PROPOSED)
-// → HubEvent TASK_PROPOSED → inbox целевого участника
-```
+Агент предлагает задачу другому участнику. Создаёт `AgentTask`
+со статусом `pending`, отправляет уведомление в inbox адресата.
 
 ### `delegate_task`
-
-```typescript
-interface DelegateTaskInput {
-  taskId: string;              // должен быть autoDelegatable=true
-  executionNote?: string;
-}
-// Проверяет autoDelegatable, иначе выбрасывает ошибку
-// → AgentTask (status: DELEGATED)
-// → log: TASK_DELEGATED
-```
+Агент автономно передаёт задачу. Только для `autoDelegatable=true`.
 
 ### `request_approval`
-
-```typescript
-interface RequestApprovalInput {
-  communityId: string;
-  targetOwnerId: string;       // кто должен одобрить
-  taskId?: string;
-  actionDescription: string;
-  urgency: 'low' | 'medium' | 'high';
-}
-// → HubEvent APPROVAL_REQUESTED → inbox targetOwnerId
-// → AgentTask или отдельная запись ApprovalRequest
-```
+Агент отправляет запрос одобрения в inbox своего пользователя.
+Пользователь видит: что хочет сделать агент, зачем, с какими данными.
 
 ---
 
-## 6. Файлы для имплементации
+## 6. Файлы для создания / изменения
 
 ### Новые файлы
 
 ```
-src/lib/services/team-activity-log.ts     — write/read activity logs
-src/lib/services/agent-task-pipeline.ts   — PROPOSE/DELEGATE/REQUEST flow
-src/lib/services/team-strategy-session.ts — weekly analysis engine
-src/lib/services/agent-efficiency.ts      — metrics aggregation
-src/lib/services/content-opportunities.ts — SMM proposals
-src/lib/mcp/tools/log-activity.ts         — MCP tool
-src/lib/mcp/tools/read-team-context.ts    — MCP tool
-src/lib/mcp/tools/propose-task.ts         — MCP tool
-src/lib/mcp/tools/delegate-task.ts        — MCP tool
-src/lib/mcp/tools/request-approval.ts     — MCP tool
+src/lib/services/team-activity-log.ts        — write/read логов
+src/lib/services/agent-task-pipeline.ts      — PROPOSE/DELEGATE/APPROVE flow
+src/lib/services/team-strategy-session.ts    — weekly session engine
+src/lib/services/agent-efficiency.ts         — метрики агентов
+src/lib/services/content-opportunities.ts   — SMM предложения
+src/lib/mcp/tools/log-activity.ts            — MCP tool
+src/lib/mcp/tools/read-team-context.ts       — MCP tool
+src/lib/mcp/tools/propose-task.ts            — MCP tool
+src/lib/mcp/tools/delegate-task.ts           — MCP tool
+src/lib/mcp/tools/request-approval.ts        — MCP tool
 src/app/api/cron/team-strategy-weekly/route.ts
 src/app/api/cron/team-activity-digest/route.ts
 ```
@@ -340,10 +231,10 @@ src/app/api/cron/team-activity-digest/route.ts
 ### Изменяемые файлы
 
 ```
-prisma/schema.prisma             — новые модели (см. ниже)
-src/lib/mcp/tools/check-in.ts   — добавить log_activity, propose_task
-src/lib/model-advice.ts         — экспорт ModelTask для новых задач
-CLAUDE_CODE_CONTEXT.md          — обновить архитектурный раздел
+prisma/schema.prisma                          — новые модели
+src/lib/mcp/tools/check-in.ts                 — добавить новые tools в реестр
+src/lib/model-router.ts                       — убедиться что все task types покрыты
+CLAUDE_CODE_CONTEXT.md                        — обновить контекст
 ```
 
 ### Prisma-модели
@@ -354,30 +245,16 @@ AgentTask
 WeeklyStrategySummary
 AgentEfficiencySnapshot
 ContentOpportunity
-ApprovalRequest
 ```
 
 ---
 
 ## 7. Инварианты
 
-1. `DELEGATE_TASK` возможен **только** если `task.autoDelegatable = true`. Иначе — ошибка.
-2. `SOCIAL_PUBLISH`, `MERGE_TO_MAIN`, финансовые действия — **всегда** `autoDelegatable = false`.
-3. Raw MEMORY.md **никогда** не попадает в `TeamActivityLog`.
-4. Каждый LLM-вызов использует `resolveModel(task)` и записывает `ComputeUsage`.
-5. Агент **никогда** не меняет роли (OWNER/ADMIN/MEMBER) напрямую — только через `CommunityActionProposal`.
-6. Все логи имеют поля `autoDelegated` и `humanApproved` для полной аудитируемости.
-7. `OWNER/ADMIN` всегда могут остановить любую автономную цепочку.
-
----
-
-## 8. Эволюция модели управления
-
-```
-Фаза 1 (сейчас):    Люди управляют, агенты логируют и предлагают задачи
-Фаза 2 (ближайшая): Агенты автономно передают auto_delegatable задачи
-                    Human-in-the-Loop только для внешних действий
-Фаза 3 (будущая):   Контролирующие агенты (supervisor role) заменяют
-                    большинство Human-in-the-Loop проверок
-                    Человек = точка override для критических решений
-```
+1. Агент **никогда** не публикует во внешние сервисы без `REQUEST_APPROVAL`.
+2. Агент **никогда** не мержит в main без явного одобрения.
+3. Роли участников (OWNER/ADMIN/MEMBER) **никогда** не меняются автоматически.
+4. Каждый LLM-вызов в пайплайне → `resolveModel(task)`, никогда не хардкод.
+5. Каждый LLM-вызов → запись `ComputeUsage` с `communityId`, `task`, `model`.
+6. Raw MEMORY.md **никогда** не попадает в `TeamActivityLog` или Hub.
+7. `AgentEfficiencyReport` видят только OWNER/ADMIN (по умолчанию).
