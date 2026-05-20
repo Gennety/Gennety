@@ -1,85 +1,99 @@
 # Open Core Monetisation Model
 
-> Gennety uses a **GitLab-style open core** strategy: the core platform is open source, advanced collaboration features are commercial.
-
-## Model Overview
-
-```
-┌─────────────────────────────────────────┐
-│         GENNETY OPEN CORE               │
-├────────────────────┬────────────────────┤
-│   OPEN SOURCE      │    COMMERCIAL       │
-│   (MIT / AGPL)     │    (Proprietary)    │
-├────────────────────┼────────────────────┤
-│ Agent runtime      │ Teams (full)        │
-│ Matching engine    │ Context Hub         │
-│ Communities        │ Strategy Engine     │
-│ Skill system       │ ModelsDebate        │
-│ Onboarding         │ Analytics dashboard │
-│ Self-hosted infra  │ Managed cloud SLA   │
-│ Telegram bot core  │ Enterprise SSO      │
-└────────────────────┴────────────────────┘
-```
+> Gennety использует **GitLab-style open core**: базис фреймворка открыт,
+> облачная инфраструктура и корпоративные фичи — коммерческие.
 
 ---
 
-## Why Open Core?
+## Что открыто, что закрыто
 
-1. **Distribution** — open source = free marketing, developer trust, community contributions.
-2. **Self-hosters become advocates** — companies deploying Gennety internally spread the brand.
-3. **Upsell path** — self-hosters hit limitations (no cross-network matching, no managed hosting) and upgrade to cloud.
-4. **Defensibility** — the matching network effect is the real moat, not the code itself.
+```
+┌─────────────────────────────────────────────────────┐
+│              GENNETY OPEN CORE                      │
+├──────────────────────────┬──────────────────────────┤
+│   OPEN SOURCE (AGPL)     │   COMMERCIAL             │
+├──────────────────────────┼──────────────────────────┤
+│ Team Framework базис     │ Managed cloud hosting    │
+│  — Context Hub protocol  │ Cross-team matching      │
+│  — Strategy Session      │   network                │
+│  — Agent Pipeline        │ Analytics dashboard      │
+│  — Model Router          │ Enterprise SSO           │
+│ Agent runtime (OpenClaw) │ Managed LLM cost budget  │
+│ Matching engine          │ SLA + support            │
+│ Communities              │ Marketplace              │
+│ Connector adapters       │                          │
+│ soul.md templates        │                          │
+│ Self-hosted infra        │                          │
+└──────────────────────────┴──────────────────────────┘
+```
+
+### Логика разделения
+
+Открыт **протокол и базис** — то, что команда должна иметь возможность
+запустить локально и кастомизировать без ограничений.
+
+Коммерческой остаётся **сеть**: cross-team matching, cloud-хостинг,
+аналитика по всем командам. Это нельзя воспроизвести, просто скопировав
+open source код — реальный моат строится на сетевом эффекте.
+
+---
+
+## Почему Open Core?
+
+1. **Дистрибуция** — open source = бесплатный маркетинг, доверие разработчиков, комьюнити-контрибуции.
+2. **Self-hosters становятся адвокатами** — команды, деплоящие Gennety локально, распространяют бренд.
+3. **Upsell-путь** — self-hosters упираются в лимиты (нет cross-network матчинга, нет managed hosting) и переходят на облако.
+4. **Defensibility** — сетевой эффект — настоящий ров, не сам код.
 
 ---
 
 ## Pricing Tiers (Draft)
 
-| Tier | Price | Includes |
+| Tier | Цена | Включает |
 |---|---|---|
-| **Free** | $0 | Communities, basic matching, 1 agent, Telegram bot |
-| **Pro** | $12/mo per user | Teams (up to 20 members), Context Hub, Strategy Engine |
-| **Business** | $49/mo per team | Unlimited members, ModelsDebate, priority matching, analytics |
-| **Enterprise** | Custom | SSO, SLA, dedicated infra, custom LLM integration |
-| **Self-Hosted** | Free (OSS) | All open-source features, own LLM keys, no cloud network |
+| **Self-Hosted** | Бесплатно | Полный Team Framework базис, собственные LLM ключи, без облачной сети |
+| **Free** | $0 | Communities, базовый матчинг, 1 агент, Telegram бот |
+| **Pro** | $12/мес per user | Teams до 20 участников, облачный Hub, Strategy Session |
+| **Business** | $49/мес per team | Неограниченно, ModelsDebate, приоритетный матчинг, аналитика |
+| **Enterprise** | Custom | SSO, SLA, dedicated infra, кастомные LLM, кросс-командная сеть |
 
 ---
 
-## Comparison with Reference Models
+## Сравнение с референсными моделями
 
-| Company | Open Part | Commercial Part | Key Lesson |
+| Компания | Открытая часть | Коммерческая часть | Ключевой урок |
 |---|---|---|---|
-| **GitLab** | CE (core DevOps) | EE (security, analytics) | Keep OSS genuinely useful |
-| **Elastic** | Elasticsearch | Security, ML, SIEM | Don't over-restrict the core |
-| **HashiCorp** | Terraform OSS | Terraform Cloud/Enterprise | Network effects live in cloud |
-| **Gennety** | Agent + matching | Teams, Context Hub, cloud network | Network is the product |
+| **GitLab** | CE (core DevOps) | EE (security, analytics) | OSS должен быть реально полезен сам по себе |
+| **Elastic** | Elasticsearch | Security, ML, SIEM | Не ограничивай core слишком сильно |
+| **HashiCorp** | Terraform OSS | Terraform Cloud/Enterprise | Сетевые эффекты живут в облаке |
+| **Gennety** | Team Framework базис | Облачная сеть, аналитика | Протокол открыт, сеть — продукт |
 
 ---
 
-## Licensing Strategy
+## Лицензирование
 
-- **Core (agent runtime, matching, communities):** AGPL-3.0
-  - Ensures modifications stay open.
-  - Forces SaaS forks to contribute back or purchase commercial license.
-- **Commercial features (Teams, Context Hub, etc.):** Proprietary license
-  - Not included in the public repo.
-  - Available to cloud subscribers and Enterprise customers.
-- **Self-hosted distribution:** Business Source License (BSL) option under consideration
-  - Converts to AGPL after 4 years (HashiCorp-style, but cleaner).
+- **Core (Team Framework, agent runtime, matching, communities):** AGPL-3.0
+  — Обеспечивает открытость модификаций.
+  — Форки, предоставляющие SaaS, обязаны контрибьютить обратно или купить коммерческую лицензию.
+- **Коммерческие фичи (cloud network, analytics, enterprise):** Proprietary
+  — Не включены в публичный репозиторий.
+- **Self-hosted distribution:** BSL (рассматривается) → конвертируется в AGPL через 4 года.
 
 ---
 
 ## Revenue Model
 
 ```
-Primary: SaaS subscriptions (Pro + Business + Enterprise)
+Primary:   SaaS subscriptions (Pro + Business + Enterprise)
 Secondary: Marketplace (third-party agent skills / integrations)
-Tertiary: Professional services (custom deployments for enterprises)
+Tertiary:  Professional services (custom deployments for enterprises)
 ```
 
 ---
 
 ## Open Questions
-- [ ] Finalise licence choice for core: AGPL vs. MIT (MIT is more permissive, faster adoption but easier to fork without contributing).
-- [ ] BSL sunset period — 4 years or 3 years?
-- [ ] Marketplace revenue share — 70/30 or 80/20?
-- [ ] Free tier limits — how many matches/month before hitting a paywall?
+- [ ] Финализировать лицензию core: AGPL vs. MIT
+- [ ] BSL sunset period — 4 или 3 года?
+- [ ] Marketplace revenue share — 70/30 или 80/20?
+- [ ] Лимиты Free tier — сколько matches/month до paywall?
+- [ ] Какие soul-templates войдут в v1 базиса?
