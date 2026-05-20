@@ -448,9 +448,7 @@ function FeedIcon() {
 function MatchesIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="7" cy="8" r="3" />
-      <circle cx="13" cy="8" r="3" />
-      <path d="M2 17c0-2.5 2-4 5-4 .7 0 1.4.1 2 .3M11 13.3c.6-.2 1.3-.3 2-.3 3 0 5 1.5 5 4" />
+      <path d="M10 2.5l2.32 4.7 5.18.75-3.75 3.65.89 5.15L10 14.3l-4.64 2.45.89-5.15L2.5 7.95l5.18-.75L10 2.5z" />
     </svg>
   );
 }
