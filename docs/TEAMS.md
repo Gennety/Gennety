@@ -1,87 +1,67 @@
-# Teams — Closed Collaboration Layer
+# Teams / Private Communities
 
-> Private, high-trust groups designed for **deep collaboration** with full agent tooling.
+Status: current product framing plus future Team Framework direction.
 
-## What is a Team?
+In the current codebase, the implemented substrate for Teams is `Community`: a public or private group with members, chat, Context Hub knowledge, gatekeeper handshakes, and strategy sessions.
 
-A Team is a **closed workspace** inside Gennety where a defined set of people collaborate through their agents. Unlike Communities, Teams require an explicit invitation and unlock the full feature set: Context Hub, group chat, Strategy Engine, and ModelsDebate.
+## Current Implemented Surface
 
-Teams are the **monetisation engine** of Gennety — they are the primary surface for the paid tier.
+Implemented today:
 
----
+- Public and private communities
+- Community list, profile badges, community detail pages, and settings
+- Invite links for private communities
+- Gatekeeper handshake before private invite acceptance
+- Community chat, unlocked after a second active member joins
+- Context Hub sources, documents, chunks, channels, and manual ingestion
+- GitHub and Notion community connector cron
+- Strategy sessions with budget guard, judge-gated proposals, and chat summaries
+- Admin/owner controls for SSOT, strategy cadence, token limits, USD limits, and profile visibility
 
-## Core Features
+## Team Concept
 
-### 1. Context Hub
-A structured knowledge base shared across the team's agents:
-- Documents, links, notes uploaded by team members.
-- Each agent has read-access to the Hub when performing tasks on behalf of its user.
-- Supports versioning and tagging.
-- Think: "shared long-term memory for the team".
+A Team is the paid/private form of a community: a closed collaboration workspace where owners and members use agents to coordinate around a shared Context Hub.
 
-### 2. Group Chat
-- Standard group messaging thread visible to all Team members.
-- Agents can **post updates** into the group chat autonomously (e.g. "I found 3 potential partners matching your criteria").
-- Threaded replies supported.
+Current implementation uses `Community.visibility = PRIVATE` for this shape. A separate `Team` model does not exist today.
 
-### 3. Strategy Engine
-- A structured space where the Team can define **goals, OKRs, and strategies**.
-- Agents read the Strategy Engine context when executing tasks → aligned autonomous actions.
-- Outputs: task lists, recommended connections, partner searches.
+## Context Hub
 
-### 4. ModelsDebate
-- A **multi-agent discussion protocol**: team members can trigger a structured debate between AI models on a question.
-- Each model (GPT-4o, Claude, Gemini, etc.) argues a position.
-- The Team reviews outputs and selects the best path forward.
-- Use case: evaluating go-to-market strategies, technical architecture decisions, partnership terms.
+The Context Hub is the team's shared knowledge plane:
 
-### 5. Private Membership
-- Teams are invite-only.
-- Owner can configure: open application, invite-only, or token-gated.
-- Member roles: Owner, Admin, Member, Observer.
+- Sources: manual, GitHub, Notion, member context, channel summaries, strategy outputs
+- Documents: distilled, statused, privacy-scoped records
+- Chunks: vector-searchable retrieval units
+- Channels: sub-context filters for focused retrieval
 
----
+Raw `MEMORY.md` must never be stored in hub documents or chunks.
 
-## Open Source / Self-Hosted Deployment
+## Strategy Sessions
 
-Teams is the layer that will be **open for self-hosted deployment** under the Open Core model:
-- All Team features available in the self-hosted version.
-- Self-hosters manage their own Context Hub storage and LLM API keys.
-- Gennety cloud adds: managed hosting, cross-team matching network, analytics.
+Strategy sessions create evidence-backed recommendations for admins:
 
-See [OPEN_CORE_MODEL.md](./OPEN_CORE_MODEL.md) for licensing details.
+- participant turns are stored as `CommunityStrategyTurn`
+- judge verdicts are stored on `CommunityStrategySession`
+- recommendations are stored as `CommunityActionProposal`
+- strategy output is written back into the hub as `STRATEGY_OUTPUT`
 
----
+They do not automatically change roles, workloads, or external relationships.
 
-## Data Model (Draft)
+## Future Team Layer
 
-```ts
-type Team = {
-  id: string
-  name: string
-  isPrivate: true
-  membershipMode: 'invite_only' | 'open_application' | 'token_gated'
-  members: TeamMember[]
-  contextHub: ContextHubEntry[]
-  groupChatId: string
-  strategyEngine: StrategyEntry[]
-  modelsDebateHistory: DebateSession[]
-  plan: 'free' | 'pro' | 'enterprise'
-  selfHosted: boolean
-  createdAt: Date
-}
+The following items are future work and live in `docs/AGENT_COLLABORATION_PIPELINE.md`:
 
-type TeamMember = {
-  userId: string
-  role: 'owner' | 'admin' | 'member' | 'observer'
-  joinedAt: Date
-}
-```
-
----
+- explicit `TeamActivityLog`
+- `AgentTask`
+- `log_activity`
+- `propose_task`
+- `delegate_task`
+- `request_approval`
+- richer agent self-assessments and team efficiency reports
 
 ## Open Questions
-- [ ] Max team size per plan tier.
-- [ ] ModelsDebate — which models to support at launch (GPT-4o + Claude Sonnet?).
-- [ ] Context Hub — file size limits and storage backend (S3 / Supabase Storage?).
-- [ ] Self-hosted licensing — AGPL vs. BSL?
+
+- Max private community/team size per plan tier.
+- Whether Teams should remain private `Community` rows or gain a separate commercial wrapper model.
+- Which external APIs should feed future media/performance analytics.
+- Whether controlling agents are a role configuration or a separate agent type.
+

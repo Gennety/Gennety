@@ -80,6 +80,16 @@ If `from` is present, it overrides the preset.
   - raw chat reports for manual review
   - recent items, reasons, participants
 
+- `GET /api/admin/analytics/openclaw`
+  - preview OpenClaw operator digest
+  - optional `market=0` disables market search
+  - optional `generate=1` includes generated report text in preview
+
+- `POST /api/admin/analytics/openclaw`
+  - runs OpenClaw moderation review
+  - optionally sends the weekly report
+  - body flags: `forceWeekly`, `send`, `includeMarket`
+
 ## Known Gaps
 
 Current backend now persists an internal analytics + compute ledger for new activity. Some caveats still remain:
