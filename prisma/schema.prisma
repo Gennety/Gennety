@@ -30,22 +30,24 @@ model Owner {
   // Filtered out of production analytics and reputation leaderboards.
   isDemo Boolean @default(false) @map("is_demo")
 
-  createdAt                DateTime          @default(now()) @map("created_at")
+  createdAt                DateTime               @default(now()) @map("created_at")
   agent                    Agent?
   accounts                 Account[]
   consentLogs              ConsentLog[]
-  blockedUsers             Block[]           @relation("Blocker")
-  blockedBy                Block[]           @relation("Blocked")
+  blockedUsers             Block[]                @relation("Blocker")
+  blockedBy                Block[]                @relation("Blocked")
   reports                  Report[]
   matchReactions           MatchReaction[]
   matchComments            MatchComment[]
-  communitiesOwned         Community[]       @relation("CommunityOwner")
+  communitiesOwned         Community[]            @relation("CommunityOwner")
   communityMemberships     CommunityMember[]
-  communityInvitesSent     CommunityInvite[] @relation("CommunityInviteInviter")
-  communityInvitesReceived CommunityInvite[] @relation("CommunityInviteInvitee")
+  communityInvitesSent     CommunityInvite[]      @relation("CommunityInviteInviter")
+  communityInvitesReceived CommunityInvite[]      @relation("CommunityInviteInvitee")
   communityChatMessages    CommunityChatMessage[] @relation("CommunityChatMessageAuthor")
   communityChatReads       CommunityChatRead[]
   agentTasksApproved       AgentTask[]            @relation("AgentTaskApprovedByOwner")
+  personalConnectors       PersonalConnector[]
+  profileAuditLogs         ProfileAuditLog[]
 
   @@index([isDemo])
   @@map("owners")
@@ -182,6 +184,55 @@ model AgentContext {
   lastSignificantUpdateAt DateTime       @default(now()) @map("last_significant_update_at")
 
   @@map("agent_contexts")
+}
+
+model PersonalConnector {
+  id             String   @id @default(cuid())
+  ownerId        String   @map("owner_id")
+  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  type           String
+  enabled        Boolean  @default(true)
+  encryptedToken String?  @map("encrypted_token") @db.Text
+  tokenIv        String?  @map("token_iv")
+  config         Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  events PersonalConnectorEvent[]
+
+  @@unique([ownerId, type])
+  @@index([type, enabled])
+  @@map("personal_connectors")
+}
+
+model PersonalConnectorEvent {
+  id          String            @id @default(cuid())
+  connectorId String            @map("connector_id")
+  connector   PersonalConnector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+  externalId  String            @map("external_id")
+  title       String
+  rawPayload  Json              @map("raw_payload")
+  distilled   String?           @map("distilled") @db.Text
+  status      String            @default("PENDING")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@unique([connectorId, externalId])
+  @@index([connectorId, status, createdAt])
+  @@map("personal_connector_events")
+}
+
+model ProfileAuditLog {
+  id        String   @id @default(cuid())
+  ownerId   String   @map("owner_id")
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  action    String
+  fieldPath String   @map("field_path")
+  oldValue  String?  @map("old_value") @db.Text
+  newValue  String?  @map("new_value") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ownerId])
+  @@map("profile_audit_logs")
 }
 
 model Beacon {

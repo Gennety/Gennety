@@ -27,6 +27,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/personal-connectors",
+      "schedule": "*/20 * * * *"
+    },
+    {
       "path": "/api/cron/community-strategy",
       "schedule": "0 * * * *"
     }

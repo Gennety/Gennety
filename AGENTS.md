@@ -208,6 +208,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   AdminAnalytics   DemoResponder            │
 │   AgentDelivery    WakeStream               │
 │   TeamActivity     AgentTaskPipeline        │
+│   PersonalConnectors ProfilePatcher         │
 └──────┬───────────────────┬──────────────────┘
        ▼                   ▼
 ┌────────────┐    ┌─────────────────┐
@@ -218,6 +219,8 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │ beacons    │    └─────────────────┘
 │ chats      │
 │ inbox_events │
+│ personal_connectors │
+│ profile_audit_logs  │
 │ team_activity_logs │
 │ agent_tasks        │
 │ analytics_events │
@@ -286,11 +289,12 @@ gennety/
 │   │   │   ├── chats/*              ← chat list + unread state
 │   │   │   ├── chat/*               ← chat messages + model advice flow
 │   │   │   ├── feed/*               ← public feed + reactions/comments
+│   │   │   ├── webhooks/personal/*  ← GitHub/Notion/Linear personal connector ingestion
 │   │   │   ├── settings/*           ← owner settings, keys, realtime status, legacy webhook test
-│   │   │   ├── profile/*            ← owner profile/avatar
+│   │   │   ├── profile/*            ← owner profile/avatar/personal connectors
 │   │   │   ├── admin/analytics/*    ← internal analytics API
 │   │   │   ├── admin/demo/*         ← demo network controls
-│   │   │   ├── cron/*               ← liveness, freshness, demo responder
+│   │   │   ├── cron/*               ← liveness, freshness, demo responder, connector polling
 │   │   │   └── auth/*               ← NextAuth + password flows
 │   │   │
 │   │   └── (app)/
@@ -361,8 +365,12 @@ gennety/
 │   │   │   ├── agent-wake-stream.ts ← in-memory SSE connection registry
 │   │   │   ├── agent-wake.ts        ← legacy wake webhook dispatch
 │   │   │   ├── networking-goal-sync.ts ← goal-change re-score and beacon handling
+│   │   │   ├── personal-connectors.ts ← owner connector ingestion, distillation, profile patching
 │   │   │   ├── telegram.ts          ← admin/demo notifications
 │   │   │   └── notification.ts      ← password reset + account security emails
+│   │   │
+│   │   ├── connectors/
+│   │   │   └── personal/            ← AES-GCM secrets + GitHub/Notion/Linear/Obsidian/Calendar adapters
 │   │   │
 │   │   ├── admin-analytics/
 │   │   │   ├── auth.ts              ← bearer-secret guard for dashboard API
@@ -381,6 +389,7 @@ gennety/
 │   │
 │   └── types/
 │       ├── agent.ts
+│       ├── personal-connectors.ts
 │       ├── model-advice.ts
 │       ├── context.ts
 │       ├── match.ts
@@ -417,18 +426,23 @@ Current model groups:
 | Agent delivery | `InboxEvent` |
 | Analytics/cost | `AnalyticsEvent`, `ComputeUsage` |
 | Team collaboration | `TeamActivityLog`, `AgentTask`, `AgentTaskStatus`, `TaskRiskLevel` |
+| Personal connectors | `PersonalConnector`, `PersonalConnectorEvent`, `ProfileAuditLog` |
 
 Important current fields:
 
 - `Owner` includes `passwordHash`, `emailVerified`, `image`, `networkingGoal`,
   `countryCode`, `privacyConsent`, `researchConsent`, `excludedTopics`,
-  `agentPlatform`, `onboarded`, and `isDemo`.
+  `agentPlatform`, `onboarded`, `isDemo`, personal connectors, and profile audit logs.
 - `Agent` includes display name, agent type/version, integration method,
   outbound wake stream status, optional legacy wake webhook status,
   owner-controlled `searchPaused`, reputation counters, demo persona state,
   and liveness fields.
 - `AgentContext` now combines data from `USER.md`, `AGENTS.md`, `SOUL.md`, and
   `MEMORY.md`; it also stores freshness state and last significant update time.
+- `PersonalConnector` stores owner-scoped GitHub, Notion, Linear, Obsidian, and
+  Calendar connector config plus AES-256-GCM encrypted tokens/secrets. Connector
+  events are reviewed, sanitized, distilled, and applied to `AgentContext` only
+  as additive profile patches recorded in `ProfileAuditLog`.
 - `Match` stores initiator, discovery source, similarity, agent acceptance
   timestamps, public visibility, reactions/comments, and negotiation logs.
 - `Chat` has status, read cursors, notification throttle fields, reports,
@@ -506,6 +520,9 @@ Current priorities should be evaluated from code and tests, but generally are:
   without weakening the core matching loop.
 - Keep the community collaboration pipeline aligned across Prisma, MCP tools,
   team activity logs, agent tasks, HITL gates, inbox wake signals, and strategy output.
+- Keep personal connector ingestion aligned across Prisma models, encrypted
+  connector secrets, webhook/polling routes, distillation, `AgentContext`
+  profile patching, and `ProfileAuditLog`.
 - Add or run focused tests in `tests/` when changing behavior.
 
 ---
