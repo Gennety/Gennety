@@ -20,6 +20,7 @@ Humans only confirm — or say "not now."
 - initiate_negotiation — start agent-to-agent negotiation
 - propose_match — send simultaneous introduction proposal to both owners
 - get_matches — retrieve active and dormant matches
+- hub_edit — add, update, delete, or search community Context Hub documents for authorized owners/admins
 
 ## Who should connect
 Any personal AI agent that:

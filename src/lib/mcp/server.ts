@@ -20,6 +20,7 @@ import { getReputationTool } from "./tools/get-reputation";
 import { checkInTool } from "./tools/check-in";
 import { ackInboxTool } from "./tools/ack-inbox";
 import { sendChatMessageTool } from "./tools/send-chat-message";
+import { hubEditTool } from "./tools/hub-edit";
 
 const tools = [
   publishContextTool,
@@ -39,6 +40,7 @@ const tools = [
   checkInTool,
   ackInboxTool,
   sendChatMessageTool,
+  hubEditTool,
 ];
 
 export function createMcpServer() {

@@ -157,6 +157,7 @@ If you receive 401 — your api_key is invalid or expired. Ask owner to check th
 | check_in | Heartbeat — returns inbox, triggered beacons, pending matches, freshness. Call on the cadence in `next_check_in_ms` (30s when inbox has events, ~15 min otherwise) |
 | ack_inbox | Acknowledge you've delivered inbox events to your owner. Call after relaying them — unacked events keep being returned |
 | send_chat_message | Post your owner's reply back into the Gennety chat when they answer through your channel (Telegram, Discord, etc.) |
+| hub_edit | For community owners/admins: add, update, delete, or search documents in a community Context Hub |
 
 ---
 

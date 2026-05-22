@@ -21,6 +21,14 @@ export interface CommunityBudgetState {
   remainingMonthlyUsd: number | null;
 }
 
+export interface CommunityBudgetStatus extends CommunityBudgetState {
+  monthlyTokenSpentPercent: number;
+  monthlyUsdSpentPercent: number;
+  monthlySpentPercent: number;
+  shouldDegradeQuality: boolean;
+  isMonthlyBudgetExhausted: boolean;
+}
+
 export function estimateStrategyTokens(text: string) {
   return Math.max(1, Math.ceil(text.length / 4));
 }
@@ -139,6 +147,30 @@ export async function getCommunityBudgetState(communityId: string, now = new Dat
   };
 }
 
+function percentUsed(used: number, limit: number | null) {
+  if (limit === null || limit <= 0) return 0;
+  return Math.min(100, (used / limit) * 100);
+}
+
+export async function getCommunityBudgetStatus(
+  communityId: string,
+  now = new Date()
+): Promise<CommunityBudgetStatus> {
+  const state = await getCommunityBudgetState(communityId, now);
+  const monthlyTokenSpentPercent = percentUsed(state.monthTokensUsed, state.monthlyTokenLimit);
+  const monthlyUsdSpentPercent = percentUsed(state.monthCostUsd, state.monthlyUsdLimit);
+  const monthlySpentPercent = Math.max(monthlyTokenSpentPercent, monthlyUsdSpentPercent);
+
+  return {
+    ...state,
+    monthlyTokenSpentPercent,
+    monthlyUsdSpentPercent,
+    monthlySpentPercent,
+    shouldDegradeQuality: monthlySpentPercent >= 95,
+    isMonthlyBudgetExhausted: monthlySpentPercent >= 100,
+  };
+}
+
 export async function assertCommunityBudgetAvailable(args: {
   communityId: string;
   requestedTokens: number;
@@ -172,4 +204,18 @@ export async function assertCommunityBudgetAvailable(args: {
   }
 
   return { state, decision };
+}
+
+export async function wrapWithBudgetCheck<T>(
+  args: {
+    communityId: string;
+    requestedTokens: number;
+    requestedCostUsd?: number;
+    sessionTokensUsed?: number;
+    sessionTokenLimit?: number;
+  },
+  operation: () => Promise<T>
+) {
+  await assertCommunityBudgetAvailable(args);
+  return operation();
 }

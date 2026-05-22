@@ -183,7 +183,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   check_in           ack_inbox              │
 │   send_chat_message  get_reputation         │
 │   report_chat        block_user             │
-│   archive_chat                              │
+│   archive_chat       hub_edit               │
 └──────────────┬──────────────────────────────┘
                │ outbound SSE wake stream
                │ /api/agent/wake/stream
@@ -444,6 +444,7 @@ send_chat_message({ match_id, content }) // agent relays owner reply into chat
 report_chat({ match_id, reason })      // safety report
 block_user({ owner_id })               // block another owner
 archive_chat({ match_id })             // archive chat
+hub_edit({ communityId, action, requestedBy, ... }) // add/update/delete/search community Context Hub docs
 ```
 
 `publish_context` must be documented with the `context` wrapper. A bare context

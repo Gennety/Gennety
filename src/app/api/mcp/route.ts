@@ -16,6 +16,7 @@ import { getReputationTool } from "@/lib/mcp/tools/get-reputation";
 import { checkInTool } from "@/lib/mcp/tools/check-in";
 import { ackInboxTool } from "@/lib/mcp/tools/ack-inbox";
 import { sendChatMessageTool } from "@/lib/mcp/tools/send-chat-message";
+import { hubEditTool } from "@/lib/mcp/tools/hub-edit";
 import { authenticateAgent } from "@/lib/mcp/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -37,6 +38,7 @@ const tools = [
   checkInTool,
   ackInboxTool,
   sendChatMessageTool,
+  hubEditTool,
 ];
 
 // JSON-RPC 2.0 handler for MCP protocol
@@ -107,6 +109,17 @@ export async function POST(request: NextRequest) {
               jsonrpc: "2.0",
               result: {
                 content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated as ${agent.agentId} but tool called with ${args.agent_id}` }) }],
+                isError: true,
+              },
+              id,
+            });
+          }
+
+          if (args?.requestedBy && args.requestedBy !== agent.ownerId) {
+            return NextResponse.json({
+              jsonrpc: "2.0",
+              result: {
+                content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated owner is ${agent.ownerId} but tool called with requestedBy=${args.requestedBy}` }) }],
                 isError: true,
               },
               id,

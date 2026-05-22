@@ -60,8 +60,9 @@ Registered MCP tools today:
 - `report_chat`
 - `block_user`
 - `archive_chat`
+- `hub_edit`
 
-`hub_edit`, `log_activity`, `propose_task`, `delegate_task`, `request_approval`, and `get_my_instructions` are future Team Framework tools. They are not registered in `src/lib/mcp/server.ts` yet.
+`log_activity`, `propose_task`, `delegate_task`, `request_approval`, and `get_my_instructions` are future Team Framework tools. They are not registered in `src/lib/mcp/server.ts` yet.
 
 ## Canonical Documentation Map
 
@@ -73,7 +74,7 @@ Registered MCP tools today:
 | Current | Development setup | `docs/DEVELOPMENT.md` |
 | Current + product framing | Communities | `docs/COMMUNITIES.md` |
 | Future | Team task pipeline and additional MCP tools | `docs/AGENT_COLLABORATION_PIPELINE.md` |
-| Future | Model router and manual `hub_edit` tool | `docs/MODEL_ROUTING.md` |
+| Current | Model router and manual `hub_edit` tool | `docs/MODEL_ROUTING.md` |
 | Future | Personal profile connectors | `docs/CONTEXT_HUB_CONNECTORS.md` |
 | Future | Embedded Slack/Jira/host-tool UI | `docs/EMBEDDED_UI_SECOND_LAYER.md` |
 | Future | Telegram Mini App expansion | `docs/TELEGRAM_INTEGRATION.md` |
@@ -101,4 +102,3 @@ Use Prisma migrations for schema changes:
 npx prisma migrate dev
 npx prisma generate
 ```
-
