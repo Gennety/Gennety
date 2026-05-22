@@ -62,6 +62,10 @@ export async function sendTelegramNotification(
   text: string,
   options?: { replyMarkup?: { inline_keyboard: TelegramInlineKeyboard } }
 ): Promise<{ sent: boolean; error?: string }> {
+  if (process.env.NODE_ENV === "test") {
+    return { sent: false, error: "Telegram disabled in test environment" };
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN ?? "";
   const chatId = process.env.TELEGRAM_CHAT_ID ?? "";
 
