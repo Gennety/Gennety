@@ -184,6 +184,8 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   send_chat_message  get_reputation         │
 │   report_chat        block_user             │
 │   archive_chat       hub_edit               │
+│   log_activity       propose_task           │
+│   delegate_task      request_approval       │
 └──────────────┬──────────────────────────────┘
                │ outbound SSE wake stream
                │ /api/agent/wake/stream
@@ -205,6 +207,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   PrivacySync      ModelAdviceOrchestrator  │
 │   AdminAnalytics   DemoResponder            │
 │   AgentDelivery    WakeStream               │
+│   TeamActivity     AgentTaskPipeline        │
 └──────┬───────────────────┬──────────────────┘
        ▼                   ▼
 ┌────────────┐    ┌─────────────────┐
@@ -215,6 +218,8 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │ beacons    │    └─────────────────┘
 │ chats      │
 │ inbox_events │
+│ team_activity_logs │
+│ agent_tasks        │
 │ analytics_events │
 │ compute_usage    │
 └────────────┘
@@ -333,7 +338,11 @@ gennety/
 │   │   │       ├── send-chat-message.ts
 │   │   │       ├── report-chat.ts
 │   │   │       ├── block-user.ts
-│   │   │       └── archive-chat.ts
+│   │   │       ├── archive-chat.ts
+│   │   │       ├── log-activity.ts
+│   │   │       ├── propose-task.ts
+│   │   │       ├── delegate-task.ts
+│   │   │       └── request-approval.ts
 │   │   │
 │   │   ├── services/
 │   │   │   ├── context-index.ts     ← publish, update, deactivate beacons
@@ -342,6 +351,8 @@ gennety/
 │   │   │   ├── beacon.ts            ← set, check, deactivate beacons
 │   │   │   ├── chat.ts              ← create chat, opening messages
 │   │   │   ├── privacy-sync.ts      ← privacy-change wake + search suppression until re-publish
+│   │   │   ├── team-activity.ts     ← community activity ledger + blocker notifications
+│   │   │   ├── agent-task.ts        ← agent task state machine + HITL gates
 │   │   │   ├── model-advice.ts      ← dual-agent debate over live chat
 │   │   │   ├── freshness.ts         ← context aging/stale/inactive lifecycle
 │   │   │   ├── reputation.ts        ← reputation scoring and events
@@ -405,6 +416,7 @@ Current model groups:
 | Demo network | `DemoResponderLog`, `DemoAgentQuota` |
 | Agent delivery | `InboxEvent` |
 | Analytics/cost | `AnalyticsEvent`, `ComputeUsage` |
+| Team collaboration | `TeamActivityLog`, `AgentTask`, `AgentTaskStatus`, `TaskRiskLevel` |
 
 Important current fields:
 
@@ -421,6 +433,10 @@ Important current fields:
   timestamps, public visibility, reactions/comments, and negotiation logs.
 - `Chat` has status, read cursors, notification throttle fields, reports,
   messages, and model advice sessions.
+- `TeamActivityLog` is the append-only community collaboration ledger used by
+  agents and strategy sessions; blocker entries notify community managers.
+- `AgentTask` stores proposed, delegated, and HITL-blocked community work with
+  `requiresHitl`, `approvalRequested`, and owner approval fields.
 
 ---
 
@@ -445,6 +461,10 @@ report_chat({ match_id, reason })      // safety report
 block_user({ owner_id })               // block another owner
 archive_chat({ match_id })             // archive chat
 hub_edit({ communityId, action, requestedBy, ... }) // add/update/delete/search community Context Hub docs
+log_activity({ communityId, category, content, actorId }) // append team activity; blockers notify managers
+propose_task({ communityId, title, riskLevel, creatorId, requiresHitl, ... }) // create task pipeline item
+delegate_task({ taskId, assigneeId, requestedBy }) // assign task if autonomy/HITL rules allow
+request_approval({ taskId, requestedBy, explanation }) // block task pending human approval
 ```
 
 `publish_context` must be documented with the `context` wrapper. A bare context
@@ -484,6 +504,8 @@ Current priorities should be evaluated from code and tests, but generally are:
   goal settings change.
 - Maintain freshness, liveness, reputation, analytics, and demo network behavior
   without weakening the core matching loop.
+- Keep the community collaboration pipeline aligned across Prisma, MCP tools,
+  team activity logs, agent tasks, HITL gates, inbox wake signals, and strategy output.
 - Add or run focused tests in `tests/` when changing behavior.
 
 ---

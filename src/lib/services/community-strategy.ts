@@ -20,7 +20,7 @@ const STRATEGY_LOCK_MS = 30 * 60 * 1000;
 
 export interface StrategyEvidence {
   id: string;
-  type: "knowledge" | "member" | "compute" | "proposal" | "beacon";
+  type: "knowledge" | "member" | "compute" | "proposal" | "activity" | "beacon";
   title: string;
   content: string;
 }
@@ -87,7 +87,7 @@ function lexicalScore(query: string, candidate: string) {
 }
 
 async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidence[]> {
-  const [chunks, proposals, usage] = await Promise.all([
+  const [chunks, proposals, usage, activityLogs] = await Promise.all([
     prisma.communityKnowledgeChunk.findMany({
       where: {
         communityId,
@@ -116,6 +116,14 @@ async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidenc
         costUsd: true,
       },
     }),
+    prisma.teamActivityLog.findMany({
+      where: {
+        communityId,
+        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+    }),
   ]);
 
   const evidence: StrategyEvidence[] = chunks.map((chunk) => ({
@@ -131,6 +139,15 @@ async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidenc
       type: "proposal",
       title: proposal.title,
       content: proposal.summary,
+    });
+  });
+
+  activityLogs.forEach((log) => {
+    evidence.push({
+      id: log.id,
+      type: "activity",
+      title: `${log.category} by ${log.actorId}`,
+      content: log.content,
     });
   });
 
@@ -476,6 +493,18 @@ export async function runCommunityStrategySession(communityId: string, scheduled
           payload: proposal.payload,
           judgeConfidence: proposal.judgeConfidence,
           requiresRole: "ADMIN",
+        },
+      });
+      await prisma.agentTask.create({
+        data: {
+          communityId,
+          title: proposal.title,
+          description: proposal.summary,
+          status: "PROPOSED",
+          riskLevel: "MEDIUM",
+          creatorId: "system",
+          requiresHitl: true,
+          approvalRequested: false,
         },
       });
     }

@@ -17,6 +17,10 @@ import { checkInTool } from "@/lib/mcp/tools/check-in";
 import { ackInboxTool } from "@/lib/mcp/tools/ack-inbox";
 import { sendChatMessageTool } from "@/lib/mcp/tools/send-chat-message";
 import { hubEditTool } from "@/lib/mcp/tools/hub-edit";
+import { logActivityTool } from "@/lib/mcp/tools/log-activity";
+import { proposeTaskTool } from "@/lib/mcp/tools/propose-task";
+import { delegateTaskTool } from "@/lib/mcp/tools/delegate-task";
+import { requestApprovalTool } from "@/lib/mcp/tools/request-approval";
 import { authenticateAgent } from "@/lib/mcp/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -39,7 +43,14 @@ const tools = [
   ackInboxTool,
   sendChatMessageTool,
   hubEditTool,
+  logActivityTool,
+  proposeTaskTool,
+  delegateTaskTool,
+  requestApprovalTool,
 ];
+
+const agentRequestedByTools = new Set(["delegate_task", "request_approval"]);
+const agentActorTools = new Set(["log_activity", "propose_task"]);
 
 // JSON-RPC 2.0 handler for MCP protocol
 export async function POST(request: NextRequest) {
@@ -115,15 +126,46 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          if (args?.requestedBy && args.requestedBy !== agent.ownerId) {
-            return NextResponse.json({
-              jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated owner is ${agent.ownerId} but tool called with requestedBy=${args.requestedBy}` }) }],
-                isError: true,
-              },
-              id,
-            });
+          if (args?.requestedBy) {
+            const requestedByMatchesAgent =
+              args.requestedBy === agent.id || args.requestedBy === agent.agentId;
+            const requestedByMatchesOwner = args.requestedBy === agent.ownerId;
+
+            if (agentRequestedByTools.has(name) && !requestedByMatchesAgent) {
+              return NextResponse.json({
+                jsonrpc: "2.0",
+                result: {
+                  content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated as ${agent.agentId} but tool called with requestedBy=${args.requestedBy}` }) }],
+                  isError: true,
+                },
+                id,
+              });
+            }
+
+            if (!agentRequestedByTools.has(name) && !requestedByMatchesOwner) {
+              return NextResponse.json({
+                jsonrpc: "2.0",
+                result: {
+                  content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated owner is ${agent.ownerId} but tool called with requestedBy=${args.requestedBy}` }) }],
+                  isError: true,
+                },
+                id,
+              });
+            }
+          }
+
+          if (agentActorTools.has(name)) {
+            const actorId = args?.actorId ?? args?.creatorId;
+            if (actorId && ![agent.id, agent.agentId, agent.ownerId].includes(actorId)) {
+              return NextResponse.json({
+                jsonrpc: "2.0",
+                result: {
+                  content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated as ${agent.agentId}/${agent.ownerId} but tool called with actor ${actorId}` }) }],
+                  isError: true,
+                },
+                id,
+              });
+            }
           }
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -45,6 +45,7 @@ model Owner {
   communityInvitesReceived CommunityInvite[] @relation("CommunityInviteInvitee")
   communityChatMessages    CommunityChatMessage[] @relation("CommunityChatMessageAuthor")
   communityChatReads       CommunityChatRead[]
+  agentTasksApproved       AgentTask[]            @relation("AgentTaskApprovedByOwner")
 
   @@index([isDemo])
   @@map("owners")
@@ -464,6 +465,8 @@ model Community {
   strategySessions   CommunityStrategySession[]
   strategyTurns      CommunityStrategyTurn[]
   actionProposals    CommunityActionProposal[]
+  activityLogs       TeamActivityLog[]
+  agentTasks         AgentTask[]
   chat               CommunityChat?
 
   @@index([ownerId])
@@ -712,6 +715,49 @@ model CommunityActionProposal {
   @@map("community_action_proposals")
 }
 
+model TeamActivityLog {
+  id          String    @id @default(cuid())
+  communityId String    @map("community_id")
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  actorId   String   @map("actor_id")
+  actorType String   @map("actor_type") // "AGENT" | "OWNER" | "SYSTEM"
+  category  String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([communityId])
+  @@index([createdAt])
+  @@map("team_activity_logs")
+}
+
+model AgentTask {
+  id          String    @id @default(cuid())
+  communityId String    @map("community_id")
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?         @db.Text
+  status      AgentTaskStatus @default(PROPOSED)
+  riskLevel   TaskRiskLevel   @default(LOW) @map("risk_level")
+
+  creatorId  String  @map("creator_id")
+  assigneeId String? @map("assignee_id")
+
+  requiresHitl      Boolean @default(false) @map("requires_hitl")
+  approvalRequested Boolean @default(false) @map("approval_requested")
+
+  approvedByOwnerId String? @map("approved_by_owner_id")
+  approvedByOwner   Owner?  @relation("AgentTaskApprovedByOwner", fields: [approvedByOwnerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([communityId])
+  @@index([status])
+  @@map("agent_tasks")
+}
+
 model CommunityChat {
   id          String              @id @default(cuid())
   communityId String              @unique @map("community_id")
@@ -866,6 +912,21 @@ enum CommunityActionProposalStatus {
   REJECTED
   APPLIED
   EXPIRED
+}
+
+enum AgentTaskStatus {
+  PROPOSED
+  ASSIGNED
+  RUNNING
+  APPROVAL_REQUIRED
+  COMPLETED
+  REJECTED
+}
+
+enum TaskRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum CommunityChatStatus {

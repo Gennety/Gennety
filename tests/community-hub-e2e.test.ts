@@ -148,6 +148,8 @@ function createFakePrisma() {
     communityStrategySessions: [] as Row[],
     communityStrategyTurns: [] as Row[],
     communityActionProposals: [] as Row[],
+    teamActivityLogs: [] as Row[],
+    agentTasks: [] as Row[],
     analyticsEvents: [] as Row[],
     computeUsage: [] as Row[],
     inboxEvents: [] as Row[],
@@ -629,6 +631,43 @@ function createFakePrisma() {
       },
     },
 
+    teamActivityLog: {
+      findMany: async (args: Row = {}) =>
+        db.teamActivityLogs
+          .filter((log) => matchesWhere(log, args.where))
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, args.take ?? db.teamActivityLogs.length)
+          .map((log) => ({ ...log })),
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("team_activity_log"),
+          createdAt: now(),
+          ...args.data,
+        };
+        db.teamActivityLogs.push(row);
+        return { ...row };
+      },
+    },
+
+    agentTask: {
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("agent_task"),
+          status: "PROPOSED",
+          riskLevel: "LOW",
+          assigneeId: null,
+          requiresHitl: false,
+          approvalRequested: false,
+          approvedByOwnerId: null,
+          createdAt: now(),
+          updatedAt: now(),
+          ...args.data,
+        };
+        db.agentTasks.push(row);
+        return { ...row };
+      },
+    },
+
     agentContext: {
       findMany: async (args: Row = {}) => {
         let rows = db.agentContexts.filter((context) => {
@@ -999,6 +1038,14 @@ async function main() {
     assert.ok(proposals.some((row: Row) => row.type === "PARTNERSHIP_OUTREACH"));
     assert.equal(proposals.every((row: Row) => row.status === "PENDING"), true);
     assert.equal(proposals.every((row: Row) => row.requiresRole === "ADMIN"), true);
+    assert.equal(
+      prisma.__db.agentTasks.filter((row: Row) => row.communityId === "community_gennety_hub_e2e").length,
+      proposals.length
+    );
+    assert.equal(
+      prisma.__db.agentTasks.every((row: Row) => row.requiresHitl === true),
+      true
+    );
     assert.equal(
       prisma.__db.communityMembers.find((row: Row) => row.id === "member_maya_hub_e2e")?.role,
       "MEMBER",

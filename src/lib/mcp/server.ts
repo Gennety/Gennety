@@ -21,6 +21,10 @@ import { checkInTool } from "./tools/check-in";
 import { ackInboxTool } from "./tools/ack-inbox";
 import { sendChatMessageTool } from "./tools/send-chat-message";
 import { hubEditTool } from "./tools/hub-edit";
+import { logActivityTool } from "./tools/log-activity";
+import { proposeTaskTool } from "./tools/propose-task";
+import { delegateTaskTool } from "./tools/delegate-task";
+import { requestApprovalTool } from "./tools/request-approval";
 
 const tools = [
   publishContextTool,
@@ -41,6 +45,10 @@ const tools = [
   ackInboxTool,
   sendChatMessageTool,
   hubEditTool,
+  logActivityTool,
+  proposeTaskTool,
+  delegateTaskTool,
+  requestApprovalTool,
 ];
 
 export function createMcpServer() {
