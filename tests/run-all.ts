@@ -13,6 +13,7 @@ const tests = [
   "tests/personal-connectors.test.ts",
   "tests/telegram-intelligram.test.ts",
   "tests/agent-collaboration-pipeline.test.ts",
+  "tests/corporate-connectors.test.ts",
   "tests/team-framework.test.ts",
   "tests/community-validation.test.ts",
   "tests/contextual-hubs.test.ts",

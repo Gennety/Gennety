@@ -533,26 +533,47 @@ model Community {
   createdAt                  DateTime                   @default(now()) @map("created_at")
   updatedAt                  DateTime                   @updatedAt @map("updated_at")
 
-  members            CommunityMember[]
-  invites            CommunityInvite[]
-  inviteHandshakes   CommunityInviteHandshake[]
-  channels           CommunityChannel[]
-  knowledgeSources   CommunityKnowledgeSource[]
-  knowledgeDocuments CommunityKnowledgeDocument[]
-  knowledgeChunks    CommunityKnowledgeChunk[]
-  strategySessions   CommunityStrategySession[]
-  strategyTurns      CommunityStrategyTurn[]
-  actionProposals    CommunityActionProposal[]
-  activityLogs       TeamActivityLog[]
-  agentTasks         AgentTask[]
-  agentInstructions  AgentInstruction[]
-  agentAssessments   AgentSelfAssessment[]
-  chat               CommunityChat?
+  members             CommunityMember[]
+  invites             CommunityInvite[]
+  inviteHandshakes    CommunityInviteHandshake[]
+  channels            CommunityChannel[]
+  knowledgeSources    CommunityKnowledgeSource[]
+  knowledgeDocuments  CommunityKnowledgeDocument[]
+  knowledgeChunks     CommunityKnowledgeChunk[]
+  strategySessions    CommunityStrategySession[]
+  strategyTurns       CommunityStrategyTurn[]
+  actionProposals     CommunityActionProposal[]
+  corporateConnectors CorporateConnector[]
+  activityLogs        TeamActivityLog[]
+  agentTasks          AgentTask[]
+  agentInstructions   AgentInstruction[]
+  agentAssessments    AgentSelfAssessment[]
+  chat                CommunityChat?
 
   @@index([ownerId])
   @@index([visibility, status, category])
   @@index([strategyEnabled, nextStrategySessionAt])
   @@map("communities")
+}
+
+model CorporateConnector {
+  id              String    @id @default(cuid())
+  communityId     String    @map("community_id")
+  community       Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  platform        String
+  enabled         Boolean   @default(true)
+  encryptedToken  String    @map("encrypted_token") @db.Text
+  tokenIv         String    @map("token_iv")
+  webhookSecret   String?   @map("webhook_secret")
+  externalSpaceId String    @map("external_space_id")
+  config          Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([communityId, platform])
+  @@index([platform, enabled])
+  @@index([externalSpaceId])
+  @@map("corporate_connectors")
 }
 
 model CommunityMember {
@@ -989,6 +1010,7 @@ enum CommunityKnowledgeSourceType {
   MANUAL
   GITHUB
   NOTION
+  CONFLUENCE
   MEMBER_CONTEXT
   CHANNEL_SUMMARY
   STRATEGY_OUTPUT

@@ -20,6 +20,7 @@ import {
   getIsoWeekPeriod,
 } from "@/lib/services/team-framework";
 import { notifyStrategySessionDone as notifyTelegramStrategySessionDone } from "@/lib/telegram/team-space";
+import { exportStrategySessionToConfluence } from "@/lib/connectors/corporate/confluence";
 import type { StrategyClaim, JudgeVerdict } from "@/types/community-strategy";
 
 const STRATEGY_LOCK_MS = 30 * 60 * 1000;
@@ -659,6 +660,10 @@ export async function runCommunityStrategySession(communityId: string, scheduled
       actionProposals: proposals.length,
     }).catch((error) =>
       console.error("[community-strategy] Telegram strategy notification failed:", error)
+    );
+
+    exportStrategySessionToConfluence(session.id).catch((error) =>
+      console.error("[community-strategy] Confluence export failed:", error)
     );
 
     return {

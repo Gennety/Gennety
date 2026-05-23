@@ -211,6 +211,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   TeamActivity     AgentTaskPipeline        │
 │   TeamFramework    DynamicInstructions      │
 │   PersonalConnectors ProfilePatcher         │
+│   CorporateConnectors Slack/Jira/Confluence │
 │   TelegramIntelligram                       │
 └──────┬───────────────────┬──────────────────┘
        ▼                   ▼
@@ -223,6 +224,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │ chats      │
 │ inbox_events │
 │ personal_connectors │
+│ corporate_connectors │
 │ profile_audit_logs  │
 │ team_activity_logs │
 │ agent_tasks        │
@@ -297,6 +299,11 @@ gennety/
 │   │   │   ├── chat/*               ← chat messages + model advice flow
 │   │   │   ├── feed/*               ← public feed + reactions/comments
 │   │   │   ├── webhooks/personal/*  ← GitHub/Notion/Linear personal connector ingestion
+│   │   │   ├── webhooks/slack/*     ← Slack events, slash commands, HITL actions
+│   │   │   ├── webhooks/jira/*      ← Jira task/status event ingestion
+│   │   │   ├── webhooks/confluence/* ← Confluence page update ingestion
+│   │   │   ├── jira/issue-context   ← Jira Forge issue context panel search
+│   │   │   ├── communities/[id]/corporate-connectors ← Slack/Jira connector setup
 │   │   │   ├── settings/*           ← owner settings, keys, realtime status, legacy webhook test
 │   │   │   ├── profile/*            ← owner profile/avatar/personal connectors
 │   │   │   ├── admin/analytics/*    ← internal analytics API
@@ -383,11 +390,13 @@ gennety/
 │   │   │   ├── agent-wake.ts        ← legacy wake webhook dispatch
 │   │   │   ├── networking-goal-sync.ts ← goal-change re-score and beacon handling
 │   │   │   ├── personal-connectors.ts ← owner connector ingestion, distillation, profile patching
+│   │   │   ├── corporate-connectors.ts ← community Slack/Jira encrypted connector config
 │   │   │   ├── telegram.ts          ← admin/demo notifications
 │   │   │   └── notification.ts      ← password reset + account security emails
 │   │   │
 │   │   ├── connectors/
-│   │   │   └── personal/            ← AES-GCM secrets + GitHub/Notion/Linear/Obsidian/Calendar adapters
+│   │   │   ├── personal/            ← AES-GCM secrets + GitHub/Notion/Linear/Obsidian/Calendar adapters
+│   │   │   └── corporate/           ← Slack/Jira/Confluence clients, signatures, queue guards
 │   │   │
 │   │   ├── admin-analytics/
 │   │   │   ├── auth.ts              ← bearer-secret guard for dashboard API
@@ -406,6 +415,7 @@ gennety/
 │   │
 │   └── types/
 │       ├── agent.ts
+│       ├── corporate-connectors.ts
 │       ├── personal-connectors.ts
 │       ├── model-advice.ts
 │       ├── context.ts
@@ -444,6 +454,7 @@ Current model groups:
 | Analytics/cost | `AnalyticsEvent`, `ComputeUsage` |
 | Team collaboration | `TeamActivityLog`, `AgentTask`, `AgentRoleConfig`, `AgentInstruction`, `AgentSelfAssessment`, `AgentTaskStatus`, `TaskRiskLevel` |
 | Personal connectors | `PersonalConnector`, `PersonalConnectorEvent`, `ProfileAuditLog` |
+| Corporate connectors | `CorporateConnector` for Slack/Jira workspace credentials, webhook secrets, and Confluence config |
 | Telegram / Intelligram | `Owner.telegramId`, `TelegramTopic`, `TelegramTopicType`, community `teamMode` |
 
 Important current fields:
@@ -462,6 +473,12 @@ Important current fields:
   Calendar connector config plus AES-256-GCM encrypted tokens/secrets. Connector
   events are reviewed, sanitized, distilled, and applied to `AgentContext` only
   as additive profile patches recorded in `ProfileAuditLog`.
+- `CorporateConnector` stores community-scoped Slack and Jira workspace config,
+  AES-256-GCM encrypted bot/API tokens, webhook signing/shared secrets, external
+  workspace/cloud IDs, user-to-owner mappings, Slack channel routing, and
+  Confluence space sync settings.
+- `CommunityKnowledgeSourceType` includes `CONFLUENCE` for corporate wiki page
+  updates synced back into the Context Hub.
 - `Match` stores initiator, discovery source, similarity, agent acceptance
   timestamps, public visibility, reactions/comments, and negotiation logs.
 - `Chat` has status, read cursors, notification throttle fields, reports,
@@ -553,6 +570,10 @@ Current priorities should be evaluated from code and tests, but generally are:
 - Keep personal connector ingestion aligned across Prisma models, encrypted
   connector secrets, webhook/polling routes, distillation, `AgentContext`
   profile patching, and `ProfileAuditLog`.
+- Keep corporate Slack/Jira/Confluence integrations aligned across
+  `CorporateConnector`, encrypted token handling, Slack signature verification,
+  HITL task approval buttons, Jira activity ingestion, Forge issue context
+  search, Confluence strategy exports, and corporate API rate-limit guards.
 - Add or run focused tests in `tests/` when changing behavior.
 
 ---

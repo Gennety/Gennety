@@ -17,6 +17,7 @@ import {
   notifyApprovalRequested as notifyTelegramApprovalRequested,
   notifyTaskProposed as notifyTelegramTaskProposed,
 } from "@/lib/telegram/team-space";
+import { notifySlackApprovalRequested } from "@/lib/connectors/corporate/slack";
 import {
   getDelegationProfileForAgent,
   inferDelegationRightFromTask,
@@ -100,6 +101,13 @@ export interface RequestTaskApprovalInput {
   taskId: string;
   requestedBy: string;
   explanation: string;
+}
+
+export interface DecideTaskApprovalInput {
+  taskId: string;
+  ownerId: string;
+  approved: boolean;
+  source?: string;
 }
 
 function normalizeTaskText(value: string | undefined, maxChars: number, fieldName: string) {
@@ -489,6 +497,15 @@ export async function requestTaskApproval(input: RequestTaskApprovalInput) {
     explanation: explanation.content,
   }).catch((error) => console.error("[agent-task] Telegram approval notification failed:", error));
 
+  notifySlackApprovalRequested({
+    communityId: updated.communityId,
+    taskId: updated.id,
+    title: updated.title,
+    riskLevel: updated.riskLevel,
+    requestedBy: requester.agentId,
+    explanation: explanation.content,
+  }).catch((error) => console.error("[agent-task] Slack approval notification failed:", error));
+
   await postTeamSystemMessage({
     communityId: updated.communityId,
     content: `Approval required for task "${updated.title}": ${explanation.content}`,
@@ -521,6 +538,86 @@ export async function requestTaskApproval(input: RequestTaskApprovalInput) {
       criticalCategories,
     },
     redactions: explanation.redactions,
+  };
+}
+
+export async function decideAgentTaskApproval(input: DecideTaskApprovalInput) {
+  const task = await loadTask(input.taskId);
+  assertTaskMutable(task.status);
+
+  const membership = await prisma.communityMember.findUnique({
+    where: {
+      communityId_ownerId: {
+        communityId: task.communityId,
+        ownerId: input.ownerId,
+      },
+    },
+    select: { role: true, status: true },
+  });
+
+  if (!membership || membership.status !== "ACTIVE" || !["OWNER", "ADMIN"].includes(membership.role)) {
+    throw new AgentTaskError("Only community owners and admins can approve HITL tasks", 403);
+  }
+
+  if (!task.requiresHitl && !task.approvalRequested) {
+    throw new AgentTaskError("Task does not require human approval", 409);
+  }
+
+  const updated = await prisma.agentTask.update({
+    where: { id: task.id },
+    data: input.approved
+      ? {
+          status: "ASSIGNED",
+          approvedByOwnerId: input.ownerId,
+          approvalRequested: false,
+          requiresHitl: true,
+        }
+      : {
+          status: "REJECTED",
+          approvedByOwnerId: null,
+          approvalRequested: false,
+        },
+  });
+
+  const decision = input.approved ? "approved" : "rejected";
+  await logTeamActivity({
+    communityId: task.communityId,
+    actorId: input.ownerId,
+    actorType: "OWNER",
+    category: "task",
+    content: `Human ${decision} task "${task.title}"${input.source ? ` via ${input.source}` : ""}.`,
+  });
+
+  await postTeamSystemMessage({
+    communityId: task.communityId,
+    content: `Human ${decision} task "${task.title}".`,
+    metadata: {
+      kind: "team_task_approval_decided",
+      task_id: task.id,
+      approved: input.approved,
+      owner_id: input.ownerId,
+      source: input.source ?? null,
+    },
+  }).catch((error) => console.error("[agent-task] Approval decision chat notification failed:", error));
+
+  await recordAnalyticsEvent({
+    type: input.approved ? "AGENT_TASK_APPROVED" : "AGENT_TASK_REJECTED",
+    ownerId: input.ownerId,
+    communityId: task.communityId,
+    metadata: {
+      task_id: updated.id,
+      risk_level: updated.riskLevel,
+      source: input.source ?? null,
+    },
+  });
+
+  return {
+    task: serializeTask(updated),
+    approval: {
+      approved: input.approved,
+      decidedByOwnerId: input.ownerId,
+      source: input.source ?? null,
+    },
   };
 }
 

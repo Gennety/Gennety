@@ -4,6 +4,7 @@ export const CommunityKnowledgeSourceType = z.enum([
   "MANUAL",
   "GITHUB",
   "NOTION",
+  "CONFLUENCE",
   "MEMBER_CONTEXT",
   "CHANNEL_SUMMARY",
   "STRATEGY_OUTPUT",
@@ -66,4 +67,3 @@ export const CommunityKnowledgeDocumentSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type CommunityKnowledgeDocumentInput = z.infer<typeof CommunityKnowledgeDocumentSchema>;
-
