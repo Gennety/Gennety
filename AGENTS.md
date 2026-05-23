@@ -186,6 +186,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   archive_chat       hub_edit               │
 │   log_activity       propose_task           │
 │   delegate_task      request_approval       │
+│   get_my_instructions                       │
 └──────────────┬──────────────────────────────┘
                │ outbound SSE wake stream
                │ /api/agent/wake/stream
@@ -208,6 +209,7 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │   AdminAnalytics   DemoResponder            │
 │   AgentDelivery    WakeStream               │
 │   TeamActivity     AgentTaskPipeline        │
+│   TeamFramework    DynamicInstructions      │
 │   PersonalConnectors ProfilePatcher         │
 │   TelegramIntelligram                       │
 └──────┬───────────────────┬──────────────────┘
@@ -224,6 +226,9 @@ Quality over quantity. One precise match per month beats ten vague ones per week
 │ profile_audit_logs  │
 │ team_activity_logs │
 │ agent_tasks        │
+│ agent_role_configs │
+│ agent_instructions │
+│ agent_self_assessments │
 │ telegram_topics   │
 │ analytics_events │
 │ compute_usage    │
@@ -356,7 +361,8 @@ gennety/
 │   │   │       ├── log-activity.ts
 │   │   │       ├── propose-task.ts
 │   │   │       ├── delegate-task.ts
-│   │   │       └── request-approval.ts
+│   │   │       ├── request-approval.ts
+│   │   │       └── get-my-instructions.ts
 │   │   │
 │   │   ├── services/
 │   │   │   ├── context-index.ts     ← publish, update, deactivate beacons
@@ -367,6 +373,7 @@ gennety/
 │   │   │   ├── privacy-sync.ts      ← privacy-change wake + search suppression until re-publish
 │   │   │   ├── team-activity.ts     ← community activity ledger + blocker notifications
 │   │   │   ├── agent-task.ts        ← agent task state machine + HITL gates
+│   │   │   ├── team-framework.ts    ← dynamic AgentInstruction, autonomy phases, self-assessment
 │   │   │   ├── model-advice.ts      ← dual-agent debate over live chat
 │   │   │   ├── freshness.ts         ← context aging/stale/inactive lifecycle
 │   │   │   ├── reputation.ts        ← reputation scoring and events
@@ -435,7 +442,7 @@ Current model groups:
 | Demo network | `DemoResponderLog`, `DemoAgentQuota` |
 | Agent delivery | `InboxEvent` |
 | Analytics/cost | `AnalyticsEvent`, `ComputeUsage` |
-| Team collaboration | `TeamActivityLog`, `AgentTask`, `AgentTaskStatus`, `TaskRiskLevel` |
+| Team collaboration | `TeamActivityLog`, `AgentTask`, `AgentRoleConfig`, `AgentInstruction`, `AgentSelfAssessment`, `AgentTaskStatus`, `TaskRiskLevel` |
 | Personal connectors | `PersonalConnector`, `PersonalConnectorEvent`, `ProfileAuditLog` |
 | Telegram / Intelligram | `Owner.telegramId`, `TelegramTopic`, `TelegramTopicType`, community `teamMode` |
 
@@ -463,6 +470,10 @@ Important current fields:
   agents and strategy sessions; blocker entries notify community managers.
 - `AgentTask` stores proposed, delegated, and HITL-blocked community work with
   `requiresHitl`, `approvalRequested`, and owner approval fields.
+- `AgentRoleConfig` stores per-member autonomy phase and optional dynamic soul
+  override. `AgentInstruction` caches compiled community instructions for 24
+  hours and is expired after strategy sessions. `AgentSelfAssessment` stores
+  weekly agent metrics consumed by community strategy runs.
 - `TelegramTopic` stores owner-scoped private forum topic routing for Intelligram
   (`matches`, `dates`, `settings`, `agent_log`, `team_space`) including the
   Telegram workspace chat and `message_thread_id`; Team Space notifications
@@ -495,6 +506,7 @@ log_activity({ communityId, category, content, actorId }) // append team activit
 propose_task({ communityId, title, riskLevel, creatorId, requiresHitl, ... }) // create task pipeline item
 delegate_task({ taskId, assigneeId, requestedBy }) // assign task if autonomy/HITL rules allow
 request_approval({ taskId, requestedBy, explanation }) // block task pending human approval
+get_my_instructions({ agentId, communityId }) // return active dynamic AgentInstruction wrapper
 ```
 
 `publish_context` must be documented with the `context` wrapper. A bare context

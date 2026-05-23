@@ -14,6 +14,11 @@ import {
   ingestCommunityKnowledgeDocument,
 } from "@/lib/services/community-knowledge";
 import { postCommunityStrategyChatSummary } from "@/lib/services/community-chat";
+import {
+  collectCommunitySelfAssessments,
+  expireAgentInstructionCache,
+  getIsoWeekPeriod,
+} from "@/lib/services/team-framework";
 import { notifyStrategySessionDone as notifyTelegramStrategySessionDone } from "@/lib/telegram/team-space";
 import type { StrategyClaim, JudgeVerdict } from "@/types/community-strategy";
 
@@ -21,7 +26,14 @@ const STRATEGY_LOCK_MS = 30 * 60 * 1000;
 
 export interface StrategyEvidence {
   id: string;
-  type: "knowledge" | "member" | "compute" | "proposal" | "activity" | "beacon";
+  type:
+    | "knowledge"
+    | "member"
+    | "compute"
+    | "proposal"
+    | "activity"
+    | "beacon"
+    | "self_assessment";
   title: string;
   content: string;
 }
@@ -87,8 +99,11 @@ function lexicalScore(query: string, candidate: string) {
   return overlap / q.size;
 }
 
-async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidence[]> {
-  const [chunks, proposals, usage, activityLogs] = await Promise.all([
+async function buildEvidenceBundle(
+  communityId: string,
+  assessmentPeriod?: string
+): Promise<StrategyEvidence[]> {
+  const [chunks, proposals, usage, activityLogs, selfAssessments] = await Promise.all([
     prisma.communityKnowledgeChunk.findMany({
       where: {
         communityId,
@@ -125,6 +140,22 @@ async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidenc
       orderBy: { createdAt: "desc" },
       take: 40,
     }),
+    prisma.agentSelfAssessment.findMany({
+      where: {
+        communityId,
+        ...(assessmentPeriod ? { period: assessmentPeriod } : {}),
+      },
+      include: {
+        agent: {
+          select: {
+            agentId: true,
+            displayName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+    }),
   ]);
 
   const evidence: StrategyEvidence[] = chunks.map((chunk) => ({
@@ -149,6 +180,25 @@ async function buildEvidenceBundle(communityId: string): Promise<StrategyEvidenc
       type: "activity",
       title: `${log.category} by ${log.actorId}`,
       content: log.content,
+    });
+  });
+
+  selfAssessments.forEach((assessment) => {
+    evidence.push({
+      id: assessment.id,
+      type: "self_assessment",
+      title: `${assessment.agent.displayName ?? assessment.agent.agentId} self-assessment ${assessment.period}`,
+      content: JSON.stringify({
+        period: assessment.period,
+        tasks_completed: assessment.tasksCompleted,
+        tasks_auto_delegated: assessment.tasksAutoDelegated,
+        approvals_requested: assessment.approvalsRequested,
+        blockers_raised: assessment.blockersRaised,
+        response_time_p50: assessment.responseTimeP50,
+        auto_delegated_ratio: assessment.autoDelegatedRatio,
+        gaps: assessment.gaps,
+        suggestions: assessment.suggestions,
+      }),
     });
   });
 
@@ -284,7 +334,10 @@ export async function runCommunityStrategySession(communityId: string, scheduled
   });
 
   try {
-    const evidence = await buildEvidenceBundle(communityId);
+    const assessmentPeriod = getIsoWeekPeriod(scheduledFor);
+    await collectCommunitySelfAssessments({ communityId, periodDate: scheduledFor });
+
+    const evidence = await buildEvidenceBundle(communityId, assessmentPeriod);
     const evidenceText = evidence.map((item) => `${item.id}: ${item.title}\n${item.content}`).join("\n\n");
     const evidenceTokens = estimateStrategyTokens(evidenceText);
     const preflight = canSpendCommunityTokens({
@@ -550,6 +603,7 @@ export async function runCommunityStrategySession(communityId: string, scheduled
         knowledgeSummary: summary,
       },
     });
+    await expireAgentInstructionCache({ communityId });
 
     const managers = community.members.filter((member) => ["OWNER", "ADMIN"].includes(member.role));
     await Promise.all(

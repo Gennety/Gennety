@@ -17,6 +17,10 @@ import {
   notifyApprovalRequested as notifyTelegramApprovalRequested,
   notifyTaskProposed as notifyTelegramTaskProposed,
 } from "@/lib/telegram/team-space";
+import {
+  getDelegationProfileForAgent,
+  inferDelegationRightFromTask,
+} from "@/lib/services/team-framework";
 
 export const TASK_RISK_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export type TaskRiskLevelInput = (typeof TASK_RISK_LEVELS)[number];
@@ -210,25 +214,17 @@ async function getDelegatorAutonomyPhase(args: {
   ownerId: string;
 }) {
   await assertAgentCommunityMember(args.communityId, args.ownerId);
+  const agent = await prisma.agent.findFirst({
+    where: { ownerId: args.ownerId },
+    select: { id: true },
+  });
+  if (!agent) return 1;
 
-  try {
-    const rows = await prisma.$queryRaw<Array<{ autonomy_phase: number }>>`
-      SELECT arc.autonomy_phase
-      FROM agent_role_configs arc
-      JOIN community_members cm ON cm.id = arc.member_id
-      WHERE cm.community_id = ${args.communityId}
-        AND cm.owner_id = ${args.ownerId}
-        AND cm.status = 'ACTIVE'
-      LIMIT 1
-    `;
-    return rows[0]?.autonomy_phase ?? 1;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("agent_role_configs") || message.includes("does not exist")) {
-      return 1;
-    }
-    throw error;
-  }
+  const profile = await getDelegationProfileForAgent({
+    communityId: args.communityId,
+    agentId: agent.id,
+  });
+  return profile.autonomyPhase;
 }
 
 async function loadTask(taskId: string) {
@@ -330,10 +326,11 @@ export async function delegateAgentTask(input: DelegateAgentTaskInput) {
   assertTaskMutable(task.status);
 
   const delegator = await resolveAgentIdentity(input.requestedBy);
-  const autonomyPhase = await getDelegatorAutonomyPhase({
+  const delegationProfile = await getDelegationProfileForAgent({
     communityId: task.communityId,
-    ownerId: delegator.ownerId,
+    agentId: delegator.id,
   });
+  const autonomyPhase = delegationProfile.autonomyPhase;
   if (autonomyPhase <= 1) {
     throw new AgentTaskError(
       "Delegation blocked: requester is in Autonomy Phase 1 and must request human approval",
@@ -346,6 +343,19 @@ export async function delegateAgentTask(input: DelegateAgentTaskInput) {
       "Delegation blocked: this task requires human approval before assignment",
       409
     );
+  }
+
+  if (!delegationProfile.delegationRights.includes("*")) {
+    const requiredRight = inferDelegationRightFromTask({
+      title: task.title,
+      description: task.description,
+    });
+    if (!requiredRight || !delegationProfile.delegationRights.includes(requiredRight)) {
+      throw new AgentTaskError(
+        "Delegation blocked: task is outside the requester's current autonomy rights",
+        403
+      );
+    }
   }
 
   const assignee = await resolveAgentIdentity(input.assigneeId);
@@ -398,6 +408,7 @@ export async function delegateAgentTask(input: DelegateAgentTaskInput) {
       assignee_agent_id: assignee.id,
       assignee_external_agent_id: assignee.agentId,
       autonomy_phase: autonomyPhase,
+      delegation_rights: delegationProfile.delegationRights,
     },
   });
 
@@ -405,6 +416,7 @@ export async function delegateAgentTask(input: DelegateAgentTaskInput) {
     task: serializeTask(updated),
     delegatedBy: delegator.agentId,
     autonomyPhase,
+    delegationRights: delegationProfile.delegationRights,
   };
 }
 

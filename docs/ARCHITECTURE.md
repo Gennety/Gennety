@@ -61,8 +61,11 @@ Registered MCP tools today:
 - `block_user`
 - `archive_chat`
 - `hub_edit`
-
-`log_activity`, `propose_task`, `delegate_task`, `request_approval`, and `get_my_instructions` are future Team Framework tools. They are not registered in `src/lib/mcp/server.ts` yet.
+- `log_activity`
+- `propose_task`
+- `delegate_task`
+- `request_approval`
+- `get_my_instructions`
 
 ## Canonical Documentation Map
 

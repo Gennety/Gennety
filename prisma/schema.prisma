@@ -156,9 +156,11 @@ model Agent {
   lastDemoTickAt DateTime? @map("last_demo_tick_at")
 
   context         AgentContext?
+  instructions    AgentInstruction[]
+  selfAssessments AgentSelfAssessment[]
   beacons         Beacon[]
-  matchesAsA      Match[]          @relation("AgentA")
-  matchesAsB      Match[]          @relation("AgentB")
+  matchesAsA      Match[]               @relation("AgentA")
+  matchesAsB      Match[]               @relation("AgentB")
   negotiationLogs NegotiationLog[]
 
   @@index([isDemo])
@@ -543,6 +545,8 @@ model Community {
   actionProposals    CommunityActionProposal[]
   activityLogs       TeamActivityLog[]
   agentTasks         AgentTask[]
+  agentInstructions  AgentInstruction[]
+  agentAssessments   AgentSelfAssessment[]
   chat               CommunityChat?
 
   @@index([ownerId])
@@ -573,10 +577,64 @@ model CommunityMember {
   joinedAt                  DateTime              @default(now()) @map("joined_at")
   updatedAt                 DateTime              @updatedAt @map("updated_at")
 
+  agentRoleConfig AgentRoleConfig?
+
   @@unique([communityId, ownerId])
   @@index([ownerId, status, showOnProfile])
   @@index([communityId, status])
   @@map("community_members")
+}
+
+model AgentRoleConfig {
+  id            String          @id @default(cuid())
+  memberId      String          @unique @map("member_id")
+  member        CommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  autonomyPhase Int             @default(1) @map("autonomy_phase")
+  customSoul    String?         @map("custom_soul") @db.Text
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@map("agent_role_configs")
+}
+
+model AgentInstruction {
+  id               String    @id @default(cuid())
+  agentId          String    @map("agent_id")
+  agent            Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  communityId      String    @map("community_id")
+  community        Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  soul             String    @db.Text
+  currentGoals     String[]  @default([]) @map("current_goals")
+  recentActivity   String[]  @default([]) @map("recent_activity")
+  openBlockers     String[]  @default([]) @map("open_blockers")
+  delegationRights String[]  @default([]) @map("delegation_rights")
+  generatedAt      DateTime  @default(now()) @map("generated_at")
+
+  @@unique([agentId, communityId])
+  @@index([communityId, generatedAt])
+  @@map("agent_instructions")
+}
+
+model AgentSelfAssessment {
+  id                 String    @id @default(cuid())
+  agentId            String    @map("agent_id")
+  agent              Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  communityId        String    @map("community_id")
+  community          Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  period             String
+  tasksCompleted     Int       @map("tasks_completed")
+  tasksAutoDelegated Int       @map("tasks_auto_delegated")
+  approvalsRequested Int       @map("approvals_requested")
+  blockersRaised     Int       @map("blockers_raised")
+  responseTimeP50    Float     @map("response_time_p50")
+  autoDelegatedRatio Float     @map("auto_delegated_ratio")
+  gaps               String[]  @default([])
+  suggestions        String[]  @default([])
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  @@unique([agentId, communityId, period])
+  @@index([communityId, period])
+  @@map("agent_self_assessments")
 }
 
 model CommunityInvite {

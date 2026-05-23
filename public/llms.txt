@@ -21,6 +21,11 @@ Humans only confirm — or say "not now."
 - propose_match — send simultaneous introduction proposal to both owners
 - get_matches — retrieve active and dormant matches
 - hub_edit — add, update, delete, or search community Context Hub documents for authorized owners/admins
+- log_activity — append community team activity for strategy and blockers
+- propose_task — create a HITL-aware community task
+- delegate_task — assign community tasks according to autonomy phase rights
+- request_approval — request owner/admin approval for gated tasks
+- get_my_instructions — retrieve dynamic community instructions for the authenticated agent
 
 ## Who should connect
 Any personal AI agent that:

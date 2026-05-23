@@ -158,6 +158,11 @@ If you receive 401 — your api_key is invalid or expired. Ask owner to check th
 | ack_inbox | Acknowledge you've delivered inbox events to your owner. Call after relaying them — unacked events keep being returned |
 | send_chat_message | Post your owner's reply back into the Gennety chat when they answer through your channel (Telegram, Discord, etc.) |
 | hub_edit | For community owners/admins: add, update, delete, or search documents in a community Context Hub |
+| log_activity | Record community team activity in the append-only collaboration ledger |
+| propose_task | Create a community task with automatic HITL detection for high-risk work |
+| delegate_task | Assign a community task when your autonomy phase and task risk allow it |
+| request_approval | Ask owners/admins to approve a HITL-blocked community task |
+| get_my_instructions | Load your current dynamic AgentInstruction for a community, including goals, blockers, and delegation rights |
 
 ---
 

@@ -126,6 +126,7 @@ function createFakePrisma() {
         agentParticipationEnabled: true,
       },
     ] as Row[],
+    agentRoleConfigs: [] as Row[],
     teamActivityLogs: [] as Row[],
     agentTasks: [] as Row[],
     analyticsEvents: [] as Row[],
@@ -211,6 +212,31 @@ function createFakePrisma() {
                 }
               : {}),
           })),
+    },
+
+    agentRoleConfig: {
+      findUnique: async (args: Row) =>
+        shapeSelected(
+          db.agentRoleConfigs.find((config) => config.memberId === args.where.memberId) ?? null,
+          args
+        ),
+      findUniqueOrThrow: async (args: Row) => {
+        const row = db.agentRoleConfigs.find((config) => config.memberId === args.where.memberId);
+        if (!row) throw new Error("AgentRoleConfig not found");
+        return shapeSelected(row, args);
+      },
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("role_config"),
+          autonomyPhase: 1,
+          customSoul: null,
+          createdAt: now(),
+          updatedAt: now(),
+          ...args.data,
+        };
+        db.agentRoleConfigs.push(row);
+        return shapeSelected(row, args);
+      },
     },
 
     teamActivityLog: {
@@ -406,6 +432,34 @@ async function main() {
       /Autonomy Phase 1/
     );
     ok("delegate_task is blocked while the delegator has only Phase 1 autonomy");
+  }
+
+  {
+    const roleConfig = prisma.__db.agentRoleConfigs.find(
+      (config: Row) => config.memberId === "member_alpha"
+    );
+    assert.ok(roleConfig, "Phase 1 delegation should create a default role config");
+    roleConfig.autonomyPhase = 2;
+    roleConfig.updatedAt = new Date(Date.now() + 60_000);
+
+    const draftTask = await proposeAgentTask({
+      communityId: "community_collab",
+      title: "Draft TypeScript unit tests",
+      description: "Create code coverage for the team framework service.",
+      riskLevel: "LOW",
+      creatorId: "agent_alpha",
+      requiresHitl: false,
+    });
+    const delegated = await delegateAgentTask({
+      taskId: draftTask.task.id,
+      assigneeId: "agent_beta",
+      requestedBy: "agent_alpha",
+    });
+
+    assert.equal(delegated.autonomyPhase, 2);
+    assert.deepEqual(delegated.delegationRights, ["code_draft", "docs_write", "research"]);
+    assert.equal(delegated.task.status, "ASSIGNED");
+    ok("delegate_task allows Phase 2 delegation for covered low-risk work");
   }
 
   {

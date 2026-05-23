@@ -25,6 +25,7 @@ import { logActivityTool } from "./tools/log-activity";
 import { proposeTaskTool } from "./tools/propose-task";
 import { delegateTaskTool } from "./tools/delegate-task";
 import { requestApprovalTool } from "./tools/request-approval";
+import { getMyInstructionsTool } from "./tools/get-my-instructions";
 
 const tools = [
   publishContextTool,
@@ -49,6 +50,7 @@ const tools = [
   proposeTaskTool,
   delegateTaskTool,
   requestApprovalTool,
+  getMyInstructionsTool,
 ];
 
 export function createMcpServer() {

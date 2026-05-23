@@ -150,6 +150,9 @@ function createFakePrisma() {
     communityActionProposals: [] as Row[],
     teamActivityLogs: [] as Row[],
     agentTasks: [] as Row[],
+    agentRoleConfigs: [] as Row[],
+    agentInstructions: [] as Row[],
+    agentSelfAssessments: [] as Row[],
     analyticsEvents: [] as Row[],
     computeUsage: [] as Row[],
     inboxEvents: [] as Row[],
@@ -263,7 +266,11 @@ function createFakePrisma() {
   }
 
   function shapeMember(member: Row, includeOwner = false) {
-    const shaped = { ...member };
+    const shaped: Row = {
+      ...member,
+      agentRoleConfig:
+        db.agentRoleConfigs.find((config) => config.memberId === member.id) ?? null,
+    };
     if (includeOwner) {
       const owner = ownerById(member.ownerId);
       const agent = agentByOwnerId(member.ownerId);
@@ -575,6 +582,12 @@ function createFakePrisma() {
     },
 
     communityStrategySession: {
+      findFirst: async (args: Row = {}) => {
+        const row =
+          db.communityStrategySessions.find((session) => matchesWhere(session, args.where)) ??
+          null;
+        return shapeSelected(row, args);
+      },
       create: async (args: Row) => {
         const row = {
           id: nextId("community_strategy_session"),
@@ -638,6 +651,8 @@ function createFakePrisma() {
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(0, args.take ?? db.teamActivityLogs.length)
           .map((log) => ({ ...log })),
+      count: async (args: Row = {}) =>
+        db.teamActivityLogs.filter((log) => matchesWhere(log, args.where)).length,
       create: async (args: Row) => {
         const row = {
           id: nextId("team_activity_log"),
@@ -650,6 +665,8 @@ function createFakePrisma() {
     },
 
     agentTask: {
+      count: async (args: Row = {}) =>
+        db.agentTasks.filter((task) => matchesWhere(task, args.where)).length,
       create: async (args: Row) => {
         const row = {
           id: nextId("agent_task"),
@@ -664,6 +681,81 @@ function createFakePrisma() {
           ...args.data,
         };
         db.agentTasks.push(row);
+        return { ...row };
+      },
+    },
+
+    agentRoleConfig: {
+      findUnique: async (args: Row) =>
+        shapeSelected(
+          db.agentRoleConfigs.find((config) => config.memberId === args.where.memberId) ?? null,
+          args
+        ),
+      findUniqueOrThrow: async (args: Row) => {
+        const row = db.agentRoleConfigs.find((config) => config.memberId === args.where.memberId);
+        if (!row) throw new Error("AgentRoleConfig not found");
+        return shapeSelected(row, args);
+      },
+      create: async (args: Row) => {
+        const row = {
+          id: nextId("agent_role_config"),
+          autonomyPhase: 1,
+          customSoul: null,
+          createdAt: now(),
+          updatedAt: now(),
+          ...args.data,
+        };
+        db.agentRoleConfigs.push(row);
+        return shapeSelected(row, args);
+      },
+    },
+
+    agentInstruction: {
+      updateMany: async (args: Row = {}) => {
+        const rows = db.agentInstructions.filter((instruction) =>
+          matchesWhere(instruction, args.where)
+        );
+        rows.forEach((row) => applyData(row, args.data));
+        return { count: rows.length };
+      },
+    },
+
+    agentSelfAssessment: {
+      findMany: async (args: Row = {}) =>
+        db.agentSelfAssessments
+          .filter((assessment) => matchesWhere(assessment, args.where))
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, args.take ?? db.agentSelfAssessments.length)
+          .map((assessment) => ({
+            ...assessment,
+            ...(args.include?.agent
+              ? {
+                  agent: {
+                    agentId: agentById(assessment.agentId)?.agentId ?? assessment.agentId,
+                    displayName: agentById(assessment.agentId)?.displayName ?? null,
+                  },
+                }
+              : {}),
+          })),
+      upsert: async (args: Row) => {
+        const key = args.where.agentId_communityId_period;
+        let row = db.agentSelfAssessments.find(
+          (assessment) =>
+            assessment.agentId === key.agentId &&
+            assessment.communityId === key.communityId &&
+            assessment.period === key.period
+        );
+        if (!row) {
+          const created = {
+            id: nextId("agent_self_assessment"),
+            createdAt: now(),
+            ...args.create,
+          };
+          db.agentSelfAssessments.push(created);
+          row = created;
+        } else {
+          applyData(row, args.update);
+        }
         return { ...row };
       },
     },
@@ -717,6 +809,10 @@ function createFakePrisma() {
     },
 
     inboxEvent: {
+      findMany: async (args: Row = {}) =>
+        db.inboxEvents
+          .filter((event) => matchesWhere(event, args.where))
+          .map((event) => shapeSelected(event, args)),
       create: async (args: Row) => {
         const row = {
           id: nextId("inbox_event"),
@@ -731,6 +827,16 @@ function createFakePrisma() {
     },
 
     agent: {
+      findFirst: async (args: Row) => {
+        const agent =
+          db.agents.find((item) => {
+            if (args.where?.OR) {
+              return args.where.OR.some((condition: Row) => matchesWhere(item, condition));
+            }
+            return matchesWhere(item, args.where);
+          }) ?? null;
+        return shapeSelected(agent, args);
+      },
       findUnique: async (args: Row) => {
         const where = args.where ?? {};
         const agent =

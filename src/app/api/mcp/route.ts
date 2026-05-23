@@ -21,6 +21,7 @@ import { logActivityTool } from "@/lib/mcp/tools/log-activity";
 import { proposeTaskTool } from "@/lib/mcp/tools/propose-task";
 import { delegateTaskTool } from "@/lib/mcp/tools/delegate-task";
 import { requestApprovalTool } from "@/lib/mcp/tools/request-approval";
+import { getMyInstructionsTool } from "@/lib/mcp/tools/get-my-instructions";
 import { authenticateAgent } from "@/lib/mcp/auth";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -47,6 +48,7 @@ const tools = [
   proposeTaskTool,
   delegateTaskTool,
   requestApprovalTool,
+  getMyInstructionsTool,
 ];
 
 const agentRequestedByTools = new Set(["delegate_task", "request_approval"]);
@@ -120,6 +122,17 @@ export async function POST(request: NextRequest) {
               jsonrpc: "2.0",
               result: {
                 content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated as ${agent.agentId} but tool called with ${args.agent_id}` }) }],
+                isError: true,
+              },
+              id,
+            });
+          }
+
+          if (args?.agentId && ![agent.id, agent.agentId].includes(args.agentId)) {
+            return NextResponse.json({
+              jsonrpc: "2.0",
+              result: {
+                content: [{ type: "text", text: JSON.stringify({ error: `Identity mismatch: authenticated as ${agent.agentId} but tool called with agentId=${args.agentId}` }) }],
                 isError: true,
               },
               id,
