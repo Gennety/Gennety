@@ -1,57 +1,126 @@
-# Gennety Team Framework
+# Gennety Team Framework Specification
 
-Status: future framework direction.
+Status: authoritative future framework design specification.
+Cross-references:
+- [MODEL_ROUTING.md](file:///Users/pro/Desktop/Gennety/docs/MODEL_ROUTING.md) (cheap vs quality LLM tasks)
+- [AGENT_COLLABORATION_PIPELINE.md](file:///Users/pro/Desktop/Gennety/docs/AGENT_COLLABORATION_PIPELINE.md) (Activity logs, tasks, and delegation MCP tools)
+- [TELEGRAM_INTEGRATION.md](file:///Users/pro/Desktop/Gennety/docs/TELEGRAM_INTEGRATION.md) (Block E - Team Space notifications)
+- [SLACK_JIRA_INTEGRATION.md](file:///Users/pro/Desktop/Gennety/docs/SLACK_JIRA_INTEGRATION.md) (corporate adapter interfaces)
 
-The current repo implements the first usable foundation of the Team Framework through Communities, Contextual Hubs, invite handshakes, strategy sessions, and community chat. This document describes the broader open-source framework direction and should not be treated as a complete current implementation checklist.
+---
 
-## Framework Idea
+## 1. Goal and Concepts
 
-Gennety Team Framework is a protocol and runtime for coordinating people and agents around:
+The **Gennety Team Framework** is a modular runtime and protocol designed to orchestrate human and AI agent cooperation. It leverages:
+1. **Dynamic Instructions**: Instruction sets assembled on-the-fly reflecting the current state of team work.
+2. **Periodic Self-Assessment**: Agents analyzing their own efficiency metrics prior to team planning loops.
+3. **Autonomy Phases**: Graduated execution permission tiers.
+4. **Abstracted SDK Layer**: Ensuring the core engine can run independently of the frontend application.
 
-- shared memory through Context Hubs
-- explicit permissions and human approval
-- periodic strategy review
-- agent-to-agent task handoff
-- reusable agent instructions
+---
 
-The networking product is the reference implementation. Private communities are the first Teams surface.
+## 2. Database Schema
 
-## Current Foundation
+Add the following structures to `prisma/schema.prisma`:
 
-Already present:
+```prisma
+model AgentRoleConfig {
+  id            String          @id @default(cuid())
+  memberId      String          @unique @map("member_id")
+  member        CommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  
+  autonomyPhase Int             @default(1) @map("autonomy_phase") // 1 = assisted, 2 = supervised, 3 = autonomous
+  customSoul    String?         @map("custom_soul") @db.Text // DB override of static soul.md templates
+  
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
-- `Community` as the group/hub model
-- `CommunityMember` roles and membership status
-- gatekeeper invite handshakes
-- Context Hub knowledge models
-- community chat models
-- strategy session and action proposal models
-- community budget guard and cron routes
+  @@map("agent_role_configs")
+}
 
-## Future Framework Primitives
+model AgentInstruction {
+  id               String   @id @default(cuid())
+  agentId          String   @map("agent_id") // References Agent model
+  communityId      String   @map("community_id")
+  
+  soul             String   @db.Text
+  currentGoals     String[] @default([]) @map("current_goals")
+  recentActivity   String[] @default([]) @map("recent_activity")
+  openBlockers     String[] @default([]) @map("open_blockers")
+  delegationRights String[] @default([]) @map("delegation_rights")
+  generatedAt      DateTime @default(now()) @map("generated_at")
 
-Future work:
+  @@unique([agentId, communityId])
+  @@map("agent_instructions")
+}
 
-- centralized model router
-- `AgentInstruction` generation
-- `AgentSelfAssessment`
-- explicit agent types: orchestrator, specialist, reviewer, observer
-- activity logging and task delegation MCP tools
-- packaged open-source adapters and soul templates
+model AgentSelfAssessment {
+  id                 String   @id @default(cuid())
+  agentId            String   @map("agent_id")
+  communityId        String   @map("community_id")
+  period             String   @map("period") // Format: "YYYY-Www" (e.g., "2026-W21")
+  
+  tasksCompleted     Int      @map("tasks_completed")
+  tasksAutoDelegated Int      @map("tasks_auto_delegated")
+  approvalsRequested Int      @map("approvals_requested")
+  blockersRaised     Int      @map("blockers_raised")
+  responseTimeP50    Float    @map("response_time_p50") // MS
+  autoDelegatedRatio Float    @map("auto_delegated_ratio")
+  
+  gaps               String[] @default([])
+  suggestions        String[] @default([])
+  createdAt          DateTime @default(now()) @map("created_at")
 
-## Operating Modes
+  @@unique([agentId, communityId, period])
+  @@map("agent_self_assessments")
+}
+```
 
-Future Team Framework mode:
+---
 
-- `assisted`: agents propose, humans approve important actions
-- `autonomous`: agents act within explicit delegation rights, with approval required for critical operations
+## 3. Core Engine Mechanics
 
-Critical operations always include external publishing, finance actions, role/authority changes, and merge-to-main actions.
+### 3.1 Dynamic `AgentInstruction` Lifecycle
 
-## Related Docs
+Instead of static prompts, agents execute inside a contextual wrapper generated dynamically:
 
-- Current hub implementation: `docs/CONTEXTUAL_HUBS_TECHNICAL_PLAN.md`
-- Future task pipeline: `docs/AGENT_COLLABORATION_PIPELINE.md`
-- Future model router and `hub_edit`: `docs/MODEL_ROUTING.md`
-- Business packaging: `docs/OPEN_CORE_MODEL.md`
+```mermaid
+graph TD
+    A[Agent Startup / Tool Invocation] --> B{Cached Instruction Exist?}
+    B -- Yes (Age < 24 hours) --> C[Return Cache]
+    B -- No / Expired --> D[Compile Context]
+    D --> E[Read public/skills/[role]_soul.md]
+    D --> F[Fetch custom overrides in AgentRoleConfig]
+    D --> G[Fetch recent TeamActivityLog rows]
+    D --> H[Fetch unresolved blockers from Context Hub]
+    D --> I[Fetch goals from last WeeklyStrategySummary]
+    E & F & G & H & I --> J[Assemble & Store in AgentInstruction]
+    J --> K[Return instruction]
+```
 
+1. **Caching (TTL)**: `AgentInstruction` caches are valid for 24 hours.
+2. **On-Demand Expiry**: Strategy Engine execution resets the TTL, forcing regeneration during the next agent tick to load the newly formulated weekly strategy.
+3. **Autonomy Phase Delegation Rights**:
+   * **Phase 1 (assisted)**: `delegationRights = []` (Any task requires HITL signature).
+   * **Phase 2 (supervised)**: `delegationRights = ["code_draft", "docs_write", "research"]`.
+   * **Phase 3 (autonomous)**: `delegationRights = ["*"]` (Excludes financial transactions and prod branch merging, which remain permanently human-gated).
+
+### 3.2 `AgentSelfAssessment` and Strategy Planning
+
+1. **Aggregation**: Before the strategy session, each agent calculates its performance metrics for the target calendar week (e.g. `tasksCompleted`, latency metrics).
+2. **Qualitative Evaluation**: The agent runs `resolveModel("distillation")` over its own logs to find skill gaps and recommendations.
+3. **Weekly Ingestion**: The Judge Agent (`resolveModel("strategy_judge")`) reads all `AgentSelfAssessment` JSON outputs to diagnose bottlenecks and allocate upcoming goals in the weekly summary.
+
+---
+
+## 4. MCP Tool `get_my_instructions`
+
+Registered in `src/lib/mcp/server.ts`:
+* **Input Schema**:
+  ```ts
+  interface GetMyInstructionsInput {
+    agentId: string;
+    communityId: string;
+  }
+  ```
+* **Response**: Returns the compiled string of the active `AgentInstruction`.

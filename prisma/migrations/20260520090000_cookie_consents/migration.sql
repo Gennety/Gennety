@@ -1,6 +1,6 @@
 -- Cookie consent audit log (append-only).
--- Kept in sync with the Prisma migration used by production deploy:
--- prisma/migrations/20260520090000_cookie_consents/migration.sql
+-- This migration lives under Prisma because production deploy runs
+-- `prisma migrate deploy` from the Docker entrypoint.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

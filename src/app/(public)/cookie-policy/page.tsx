@@ -75,9 +75,9 @@ export default async function CookiePolicyPage() {
                     <td className="px-4 py-3">Session</td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-mono text-neutral-300">consent_prefs</td>
-                    <td className="px-4 py-3">Remembers your privacy preferences from onboarding</td>
-                    <td className="px-4 py-3">1 year</td>
+                    <td className="px-4 py-3 font-mono text-neutral-300">cookie_consent_given</td>
+                    <td className="px-4 py-3">Remembers your cookie banner choices in browser storage</td>
+                    <td className="px-4 py-3">Until browser storage is cleared or the policy version changes</td>
                   </tr>
                 </tbody>
               </table>
@@ -93,13 +93,13 @@ export default async function CookiePolicyPage() {
             </div>
           </section>
 
-          {/* Why No Consent Banner */}
+          {/* Consent Choices */}
           <section>
-            <h2 className="text-lg font-medium text-white mb-3">Why No Consent Banner</h2>
+            <h2 className="text-lg font-medium text-white mb-3">Consent Choices</h2>
             <p>
-              Because we use only strictly necessary cookies, we are not required under GDPR
-              to obtain your consent before setting them. We inform you about their use
-              through this policy.
+              We show a cookie preferences banner so you can accept, reject, or customize
+              optional categories. Your browser stores a local UX cache of the choice, and
+              the server keeps an append-only consent audit record without storing your raw IP address.
             </p>
           </section>
 

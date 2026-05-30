@@ -15,6 +15,7 @@ const tests = [
   "tests/agent-collaboration-pipeline.test.ts",
   "tests/corporate-connectors.test.ts",
   "tests/team-framework.test.ts",
+  "tests/openclaw-operator.test.ts",
   "tests/community-validation.test.ts",
   "tests/contextual-hubs.test.ts",
   "tests/community-hub-e2e.test.ts",

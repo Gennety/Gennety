@@ -654,12 +654,14 @@ export default async function PrivacyPolicyPage() {
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-mono text-neutral-300">
-                      consent_prefs
+                      cookie_consent_given
                     </td>
                     <td className="px-4 py-3">
-                      Stores your privacy preferences
+                      Stores your cookie banner choices in browser storage
                     </td>
-                    <td className="px-4 py-3">1 year</td>
+                    <td className="px-4 py-3">
+                      Until browser storage is cleared or the policy version changes
+                    </td>
                   </tr>
                 </tbody>
               </table>

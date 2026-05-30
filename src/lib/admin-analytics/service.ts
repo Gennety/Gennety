@@ -163,6 +163,7 @@ export async function getAnalyticsIndex(range: AnalyticsRange) {
       { key: "costs", title: "Costs", path: "/api/admin/analytics/costs" },
       { key: "anomalies", title: "Anomalies", path: "/api/admin/analytics/anomalies" },
       { key: "reports", title: "Reports", path: "/api/admin/analytics/reports" },
+      { key: "openclaw", title: "OpenClaw Operator", path: "/api/admin/analytics/openclaw" },
     ],
     auth: {
       mode: "bearer_secret",

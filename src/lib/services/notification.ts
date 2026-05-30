@@ -125,3 +125,20 @@ export async function sendCommunityInviteEmail(
     `)
   );
 }
+
+/* ── 4. Operator reports ── */
+
+export async function sendOperatorReportEmail(
+  email: string,
+  subject: string,
+  reportText: string
+) {
+  return sendEmail(
+    email,
+    subject,
+    emailLayout(`
+      <h2 style="font-size: 20px; color: #111; margin-bottom: 8px;">OpenClaw operator report</h2>
+      <pre style="white-space: pre-wrap; font-family: system-ui, -apple-system, sans-serif; color: #333; line-height: 1.55; background: #f7f7f7; border-radius: 8px; padding: 16px;">${escapeHtml(reportText)}</pre>
+    `)
+  );
+}
